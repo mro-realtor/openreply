@@ -34,18 +34,17 @@ describe("composer setting combinations", () => {
 
 describe("what a draft needs before it can go live", () => {
   const ready = { name: "Spring", dmMessage: "hi", postId: "p1", matchAnyPost: false, pendingNextReel: false, matchAnyWord: false, keywords: ["link"] };
-  it("is ready when it has a message, a trigger post and a keyword", () => {
+  it("is ready when it has a name, a message and a keyword (a trigger post is not required)", () => {
     expect(missingForActivation(ready)).toEqual([]);
     expect(missingForActivation({ ...ready, postId: null, matchAnyPost: true, keywords: [], matchAnyWord: true })).toEqual([]);
     expect(missingForActivation({ ...ready, postId: null, pendingNextReel: true })).toEqual([]);
   });
   it("lists everything that is missing in plain words", () => {
-    expect(missingForActivation({ ...ready, postId: null })).toEqual(["which post triggers it"]);
+    expect(missingForActivation({ ...ready, postId: null })).toEqual([]);
     expect(missingForActivation({ ...ready, keywords: [] })).toEqual(["a keyword, or match any word"]);
     expect(missingForActivation({ ...ready, name: " ", dmMessage: "", postId: null, keywords: [] })).toEqual([
       "a name",
       "the message to send",
-      "which post triggers it",
       "a keyword, or match any word",
     ]);
   });

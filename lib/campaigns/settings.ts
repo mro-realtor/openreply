@@ -46,12 +46,15 @@ export interface ActivationFields {
   keywords: string[];
 }
 
-/** What is still missing before a saved draft can go live. Empty means ready. */
+/**
+ * What is still missing before a saved draft can go live. Empty means ready.
+ * The trigger post is deliberately not required here: drafts created through the
+ * API have always been allowed to go live without one, and that is kept.
+ */
 export function missingForActivation(c: ActivationFields): string[] {
   const missing: string[] = [];
   if (!c.name.trim()) missing.push("a name");
   if (!c.dmMessage.trim()) missing.push("the message to send");
-  if (!c.matchAnyPost && !c.pendingNextReel && !c.postId) missing.push("which post triggers it");
   if (!c.matchAnyWord && c.keywords.length === 0) missing.push("a keyword, or match any word");
   return missing;
 }

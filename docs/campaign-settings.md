@@ -8,7 +8,8 @@ Send `isDraft: true` when creating a campaign. A draft is never live, whatever
 `isActive` says, and may be incomplete (no trigger post, no keyword yet).
 Turning a campaign on (`isActive: true`) checks that it is complete. If not, the
 request is refused with a plain list of what is still missing: a name, the
-message, which post triggers it, a keyword or match any word.
+message, and a keyword or match any word. A trigger post is not required, which
+keeps the existing behaviour for drafts created through the API.
 
 ## Strict follow gate (`followGateStrict`)
 Needs `requireFollow`. Normal mode: after someone taps "I'm following", only a
