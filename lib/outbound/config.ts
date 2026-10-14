@@ -2,7 +2,7 @@
  * Outbound webhooks are OFF by default. When off, nothing is queued and no
  * request is ever sent to a third party.
  */
-export function isOutboundWebhooksEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+export function isOutboundWebhooksEnabled(env: Record<string, string | undefined> = process.env): boolean {
   return env.OUTBOUND_WEBHOOKS_ENABLED === "true";
 }
 
@@ -11,7 +11,7 @@ export function isOutboundWebhooksEnabled(env: NodeJS.ProcessEnv = process.env):
  * example an n8n container on the same private network. Comma separated,
  * exact hostnames only (no wildcards).
  */
-export function allowedPrivateHosts(env: NodeJS.ProcessEnv = process.env): string[] {
+export function allowedPrivateHosts(env: Record<string, string | undefined> = process.env): string[] {
   return (env.OUTBOUND_WEBHOOK_ALLOWED_HOSTS ?? "")
     .split(",")
     .map((h) => h.trim().toLowerCase())
