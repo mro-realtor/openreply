@@ -69,3 +69,5 @@ Merging into main, production deploy, production database migrations, activating
 ## Merge and deploy order
 
 See docs/dependency-map.md and docs/deployment.md. IG_MAINTENANCE_ENABLED is now opt-in (owner approved): the worker timer and /api/cron/refresh-tokens do nothing toward Meta unless it is exactly "true". Applied identically on #4 to #9. Deployment guide still needs a real rollback rehearsal on a scratch database before production; none has been done.
+
+Comment polling is opt-in via COMMENT_POLLING_ENABLED (owner approved), applied identically on #4 to #9, independent of IG_MAINTENANCE_ENABLED. An existing deployment must set it to true on the worker before deploying to keep polling. Background job audit is in docs/deployment.md section 1. No GoHighLevel, Retell, n8n or AI provider calls exist in the code.

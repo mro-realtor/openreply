@@ -9,7 +9,7 @@ Related: `docs/dependency-map.md` (what each PR needs), `docs/instagram-connecti
 | Behavior | Contacts | When it runs | Control |
 |---|---|---|---|
 | Sending DMs and public replies for an **active** campaign | Meta | When a matching comment arrives | Campaigns are created inactive. Only a person activates one. API and MCP can only make drafts. |
-| Comment polling safety net (worker) | Meta (reads comments) | Every 5 minutes after the worker starts. **Already on in the existing app.** | `COMMENT_POLL_INTERVAL_MS` changes the pace. There is no off switch today. |
+| Comment polling safety net (worker) | Meta (reads comments), then queues DMs or public replies for matching comments on **active** campaigns | Only when `COMMENT_POLLING_ENABLED` is exactly `true`: first run 10 seconds after the worker starts, then every 5 minutes | **Off by default.** Opt-in. Independent of the upkeep switch. **An existing deployment that relies on polling must set it to `true` before deploying** (section 6). |
 | Instagram upkeep: token renewal, webhook check and restore | Meta | Only when `IG_MAINTENANCE_ENABLED` is exactly `true`, in the worker (first run 1 minute after boot, then every 6 hours) and in `/api/cron/refresh-tokens` | **Off by default.** Opt-in. |
 | Cron routes `attach-next-reel` and `snapshot-followers` | Meta | Only if something calls them. `vercel.json` schedules them on Vercel; a self-hosted setup runs them only if an outside scheduler calls them with the cron secret. | `CRON_SECRET`, and do not schedule them externally unless wanted |
 | Connecting or reconnecting Instagram | Meta | When a signed-in person clicks Connect | User action |
@@ -19,7 +19,23 @@ Related: `docs/dependency-map.md` (what each PR needs), `docs/instagram-connecti
 | REST API, MCP, OAuth endpoints | Nothing outbound. They only answer requests. | Only when their flags are `true` | `API_V1_ENABLED`, `MCP_ENABLED`, `OAUTH_ENABLED` |
 | Viewing or searching contacts | Nothing | Never sends | Read only by design |
 
-The only thing in this stack that talks to Meta on its own, with no person involved, is comment polling (existing behavior) and the opt-in upkeep. Nothing here contacts GoHighLevel, Retell, n8n (until a webhook endpoint is added and the flag is on) or any AI provider.
+### Background job audit
+
+Checked in the code at the head of PR #9: every timer, queue, cron route, vendor name and hard-coded outside host. Anything automatic is listed here with its control.
+
+| Job | Where | Contacts | Automatic? | Control |
+|---|---|---|---|---|
+| Worker heartbeat | worker | Database and Redis only | yes, every 30 s | none needed |
+| Message queue consumer | worker | Meta (sends DMs and replies) | Only works on queued jobs. Jobs come from Meta webhooks, comment polling, and delayed jobs (opening DM fallback, rate limit retry, follow up message). | Only **active** campaigns queue anything. Drafts and inactive campaigns never do. |
+| Comment polling | worker | Meta, can queue messages | only if flag is on | `COMMENT_POLLING_ENABLED=true` |
+| Instagram upkeep | worker and cron route | Meta | only if flag is on | `IG_MAINTENANCE_ENABLED=true` |
+| Outbound webhook delivery | worker | Your registered webhook URLs | only if flag is on and an endpoint exists | `OUTBOUND_WEBHOOKS_ENABLED=true` |
+| `/api/cron/refresh-tokens` | web | Meta (only with the upkeep flag) | only if something calls it | `CRON_SECRET`, plus the upkeep flag |
+| `/api/cron/attach-next-reel`, `/api/cron/snapshot-followers` | web | Meta (reads) | **Only if something calls them.** `vercel.json` schedules all three daily on Vercel. A self-hosted server runs them only if an outside scheduler calls them. | `CRON_SECRET`. **There is no on/off variable for these two.** Do not schedule them externally unless wanted, and delete their `vercel.json` entries if you ever deploy to Vercel. |
+| Meta webhook `/api/webhook` | web | Inbound only; it can queue messages for active campaigns | when Meta calls it | Active campaigns, `WEBHOOK_VERIFY_TOKEN` |
+| Sign-in and invitation email | web | Resend | when a person signs in or is invited | `RESEND_API_KEY` |
+
+Not found anywhere in the code: any call to GoHighLevel, Retell, n8n (except through a webhook endpoint you register), or any AI provider. The only outside hosts in the code are `graph.instagram.com`, `graph.facebook.com` and `api.instagram.com` (Meta), Resend through the sign-in provider, and the webhook URLs you add. Adding any of those integrations later needs its own flag and a new row in this table first.
 
 ## 2. Environment variables and safe defaults
 
@@ -42,6 +58,8 @@ Set these on the **web** service unless noted. The worker needs the database, Re
 | `CONTACT_DM_COOLDOWN_HOURS` | repo default | Only matters when contacts are on |
 | `IG_MAINTENANCE_ENABLED` (worker and web) | `false` or unset | **Opt-in. Contacts Meta.** |
 | `IG_MAINTENANCE_INTERVAL_MS` (worker) | 21600000 | Minimum 900000. An invalid value falls back to 6 hours. |
+| `COMMENT_POLLING_ENABLED` (worker) | `false` or unset | **Opt-in. Contacts Meta and can queue messages.** Independent of `IG_MAINTENANCE_ENABLED`: neither turns the other on or off. **Existing production: set to `true` first to keep today's behavior.** |
+| `COMMENT_POLL_INTERVAL_MS` (worker) | 300000 | Minimum 60000. An invalid value falls back to 5 minutes. |
 | `OUTBOUND_WEBHOOKS_ENABLED` | unset (off) | |
 | `OUTBOUND_WEBHOOK_ALLOWED_HOSTS`, `OUTBOUND_DELIVERY_INTERVAL_MS` | repo defaults | |
 | `COMMENT_POLL_INTERVAL_MS` (worker) | 300000 | |
@@ -49,10 +67,10 @@ Set these on the **web** service unless noted. The worker needs the database, Re
 Check flags without printing secrets. Run this on each service and read only the flag lines:
 
 ```
-printenv | grep -E '^(API_V1_ENABLED|MCP_ENABLED|OAUTH_ENABLED|CONTACTS_DEDUP_ENABLED|IG_MAINTENANCE_ENABLED|OUTBOUND_WEBHOOKS_ENABLED)='
+printenv | grep -E '^(API_V1_ENABLED|MCP_ENABLED|OAUTH_ENABLED|CONTACTS_DEDUP_ENABLED|IG_MAINTENANCE_ENABLED|COMMENT_POLLING_ENABLED|OUTBOUND_WEBHOOKS_ENABLED)='
 ```
 
-Expect no lines, or lines ending in `=false`.
+A new deployment should show no lines, or lines ending in `=false`. An existing deployment that already uses comment polling should show `COMMENT_POLLING_ENABLED=true` on the worker and nothing else.
 
 ## 3. Database backup and restore verification
 
@@ -94,6 +112,7 @@ After starting the worker, confirm all of these in its log and the dashboard:
 
 1. `[DM Worker] Started` appears.
 2. `[DM Worker] Instagram maintenance is OFF.` appears. If you see `is ON`, stop the worker and fix `IG_MAINTENANCE_ENABLED` unless you approved it.
+   `[DM Worker] Comment polling is OFF.` appears on a new deployment. On an existing deployment that must keep polling, `Comment polling is ON` is expected. If it says OFF there, polling has stopped: set `COMMENT_POLLING_ENABLED=true` on the worker and restart it.
 3. No error lines about the database, Redis or `ENCRYPTION_KEY`.
 4. The Diagnostics page shows a recent worker heartbeat (it updates about every 30 seconds).
 5. Settings shows each Instagram account as before. Do not click Reconnect to test.
@@ -101,6 +120,7 @@ After starting the worker, confirm all of these in its log and the dashboard:
 
 ## 6. Deployment order
 
+0. **Existing production only, before deploying any PR that contains the polling flag (#4 and later):** if the current system relies on comment polling, set `COMMENT_POLLING_ENABLED=true` on the worker first. The currently deployed version polls every 5 minutes with no flag. Without this step, deploying turns polling off and comments that Meta webhooks miss on active campaigns will not get a reply or DM. Checking whether any active campaign depends on it is a decision for the owner; this has not been inspected on production.
 1. Confirm the backup is verified (section 3) and the flags are as in section 2.
 2. Deploy **web** first. It applies the migrations. Run `prisma migrate status` and confirm nothing is pending or failed.
 3. Check the dashboard loads and existing campaigns look right.
