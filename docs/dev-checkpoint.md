@@ -14,7 +14,7 @@ Last updated: 2026-10-14 (after PR #9). Written so work can resume cold.
 | 6 | #6 | feature/contact-consent-assignment | feature/outbound-webhooks | green (run 38541799077, head 388d415) |
 | 7 | #7 | feature/campaign-settings | feature/contact-consent-assignment | green (run 38543508899, head b25ac5a) |
 | 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38588391103, head db15535) |
-| 9 | #9 | feature/contacts-dashboard-api | feature/campaign-dashboard-api | pending |
+| 9 | #9 | feature/contacts-dashboard-api | feature/campaign-dashboard-api | green (run 38608921149, head f9dd845) |
 
 Next branch: stack on feature/campaign-dashboard-api. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
 

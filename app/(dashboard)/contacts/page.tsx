@@ -135,7 +135,7 @@ export default function ContactsPage() {
           <span className="mb-1 block text-xs text-muted">Search</span>
           <input
             className={input}
-            placeholder="Name, handle or Instagram ID"
+            placeholder="Name, handle or ID"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Search contacts"
