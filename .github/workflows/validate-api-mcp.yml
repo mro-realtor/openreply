@@ -94,7 +94,7 @@ jobs:
         run: node scripts/ci/mcp-ts-client.mjs
       - name: Client 3, official Python MCP SDK
         run: |
-          python3 -m pip install --quiet mcp
+          python3 -m pip install --quiet "mcp==1.13.1"
           python3 scripts/ci/mcp_py_client.py
       - name: Client 4, MCP Inspector CLI
         run: |
