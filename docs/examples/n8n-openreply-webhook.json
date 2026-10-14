@@ -1,0 +1,120 @@
+{
+  "name": "OpenReply events (untested example)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "openreply",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "1",
+      "name": "OpenReply Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "openreply-example"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.OPENREPLY_WEBHOOK_SECRET;\nconst header = $input.first().json.headers['x-openreply-signature'] || '';\nconst raw = $input.first().binary.data ? Buffer.from($input.first().binary.data.data, 'base64').toString('utf8') : JSON.stringify($input.first().json.body);\nconst parts = Object.fromEntries(header.split(',').map((p) => p.split('=')));\nconst fresh = Math.abs(Date.now() / 1000 - Number(parts.t)) <= 300;\nconst expected = crypto.createHmac('sha256', secret).update(parts.t + '.' + raw).digest('hex');\nconst valid = fresh && parts.v1 && expected.length === parts.v1.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1));\nif (!valid) throw new Error('Bad OpenReply signature');\nreturn [{ json: JSON.parse(raw) }];"
+      },
+      "id": "2",
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "dm.sent",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "3",
+      "name": "Is dm.sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4",
+      "name": "Replace with your CRM step",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "OpenReply Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature": {
+      "main": [
+        [
+          {
+            "node": "Is dm.sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is dm.sent": {
+      "main": [
+        [
+          {
+            "node": "Replace with your CRM step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "note": "UNTESTED example. Not imported into a real n8n yet. Set OPENREPLY_WEBHOOK_SECRET in n8n and allow the crypto module."
+  }
+}

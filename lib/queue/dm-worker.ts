@@ -1,6 +1,7 @@
 import { Worker, type Job } from "bullmq";
 import { isContactsDedupEnabled, getCooldownHours } from "@/lib/contacts/config";
 import { decideDm, linkDmLog, resolveContact } from "@/lib/contacts/service";
+import { emitDmEventsForComment } from "@/lib/outbound/events";
 import {
   getDMQueue,
   getRedisConnection,
@@ -726,6 +727,10 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       console.error("contact link failed", formatError(linkError));
     }
   }
+
+  // Tell any connected receivers (n8n, CRM) what happened. No-op unless
+  // OUTBOUND_WEBHOOKS_ENABLED=true, and it never throws.
+  await emitDmEventsForComment(prisma, commentId);
 }
 
 /**

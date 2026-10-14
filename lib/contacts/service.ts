@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/app/generated/prisma/client";
+import { emitOutbound } from "@/lib/outbound/events";
 
 type Db = PrismaClient;
 
@@ -134,6 +135,14 @@ export async function setOptOut(db: Db, workspaceId: string, contactId: string, 
     where: { id: contactId, workspaceId },
     data: optedOut ? { status: "OPTED_OUT", optedOutAt: new Date() } : { status: "ACTIVE", optedOutAt: null },
   });
+  if (res.count === 1 && optedOut) {
+    await emitOutbound(db, {
+      workspaceId,
+      type: "contact.opted_out",
+      dedupeKey: `contact:${contactId}:opted_out:${Date.now()}`,
+      data: { contactId },
+    });
+  }
   return res.count === 1;
 }
 
@@ -142,5 +151,13 @@ export async function setHumanTakeover(db: Db, workspaceId: string, contactId: s
     where: { id: contactId, workspaceId },
     data: { humanTakeoverAt: active ? new Date() : null },
   });
+  if (res.count === 1 && active) {
+    await emitOutbound(db, {
+      workspaceId,
+      type: "contact.human_takeover",
+      dedupeKey: `contact:${contactId}:human_takeover:${Date.now()}`,
+      data: { contactId },
+    });
+  }
   return res.count === 1;
 }
