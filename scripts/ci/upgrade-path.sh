@@ -24,13 +24,13 @@ INSERT INTO \"Automation\"(id,\"workspaceId\",\"instagramAccountId\",name,\"dmMe
 
 apply_all() { for dir in "${NEW[@]}"; do run -f "$dir/migration.sql"; done; }
 count_tables() { run -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ($1)"; }
-NEW_TABLES="'ApiToken','AuditLog','IdempotencyKey','OAuthClient','OAuthAuthorizationRequest','OAuthGrant','OAuthAuthorizationCode','OAuthRefreshToken','Contact','SocialIdentity','WebhookEndpoint','OutboxEvent','WebhookDelivery'"
+NEW_TABLES="'ApiToken','AuditLog','IdempotencyKey','OAuthClient','OAuthAuthorizationRequest','OAuthGrant','OAuthAuthorizationCode','OAuthRefreshToken','Contact','SocialIdentity','WebhookEndpoint','OutboxEvent','WebhookDelivery','ContactConsentEvent'"
 
 apply_all
 test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\"::text, \"isDraft\"::text) FROM \"Automation\" WHERE id='au1'")" = "true,false"
-test "$(count_tables "$NEW_TABLES")" = "13"
+test "$(count_tables "$NEW_TABLES")" = "14"
 test "$(run -t -A -c "SELECT \"connectionStatus\"::text FROM \"InstagramAccount\" WHERE id='a1'")" = "ACTIVE"
-echo "upgrade ok: legacy campaign unchanged (active, not a draft), 13 new tables"
+echo "upgrade ok: legacy campaign unchanged (active, not a draft), 14 new tables"
 
 for (( i=${#NEW[@]}-1; i>=0; i-- )); do run -f "${NEW[$i]}/rollback.sql"; done
 test "$(run -t -A -c "SELECT name FROM \"Automation\" WHERE id='au1'")" = "legacy"
