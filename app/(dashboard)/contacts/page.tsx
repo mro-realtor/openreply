@@ -29,12 +29,17 @@ const input =
   "w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:border-accent";
 
 export default function ContactsPage() {
-  const [items, setItems] = useState<ContactItem[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState(true);
-  const [loading, setLoading] = useState(true);
+  // The result remembers which filters it answers, so "loading" is simply
+  // "the stored result is for different filters" and no effect has to reset state.
+  const [result, setResult] = useState<{
+    key: string;
+    items: ContactItem[];
+    nextCursor: string | null;
+    enabled: boolean;
+    error: string;
+  } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
+  const [moreError, setMoreError] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
@@ -74,33 +79,41 @@ export default function ContactsPage() {
     [query, status, consent, assignedTo]
   );
 
+  const key = JSON.stringify([query, status, consent, assignedTo]);
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError("");
     load(null)
       .then((data) => {
         if (cancelled) return;
-        setItems(data.items);
-        setNextCursor(data.nextCursor);
-        setEnabled(data.contactsEnabled !== false);
+        setMoreError("");
+        setResult({ key, items: data.items, nextCursor: data.nextCursor, enabled: data.contactsEnabled !== false, error: "" });
       })
-      .catch((e: Error) => !cancelled && setError(e.message))
-      .finally(() => !cancelled && setLoading(false));
+      .catch((e: Error) => {
+        if (!cancelled) setResult({ key, items: [], nextCursor: null, enabled: true, error: e.message });
+      });
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [load, key]);
+
+  const loading = result === null || result.key !== key;
+  const items = result && !loading ? result.items : [];
+  const nextCursor = result && !loading ? result.nextCursor : null;
+  const enabled = result?.enabled ?? true;
+  const error = moreError || (result && !loading ? result.error : "");
 
   async function more() {
     if (!nextCursor) return;
     setLoadingMore(true);
+    setMoreError("");
     try {
       const data = await load(nextCursor);
-      setItems((prev) => [...prev, ...data.items]);
-      setNextCursor(data.nextCursor);
+      setResult((prev) =>
+        prev ? { ...prev, items: [...prev.items, ...data.items], nextCursor: data.nextCursor } : prev
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load more");
+      setMoreError(e instanceof Error ? e.message : "Could not load more");
     } finally {
       setLoadingMore(false);
     }
