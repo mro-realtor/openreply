@@ -54,7 +54,8 @@ export async function backfillContactsFromDmLog(
           externalId: g.commenterId,
         },
       };
-      let identity = await db.socialIdentity.findUnique({ where });
+      let contactId: string;
+      const identity = await db.socialIdentity.findUnique({ where });
       if (!identity) {
         const contact = await db.contact.create({
           data: {
@@ -72,22 +73,22 @@ export async function backfillContactsFromDmLog(
               },
             },
           },
-          select: { id: true, identities: { select: { id: true, contactId: true } } },
+          select: { id: true },
         });
         result.contactsCreated++;
-        identity = { ...contact.identities[0] } as never;
-      } else if (lastSent) {
-        await db.contact.updateMany({
-          where: {
-            id: identity.contactId,
-            OR: [{ lastDmSentAt: null }, { lastDmSentAt: { lt: lastSent } }],
-          },
-          data: { lastDmSentAt: lastSent },
-        });
+        contactId = contact.id;
+      } else {
+        contactId = identity.contactId;
+        if (lastSent) {
+          await db.contact.updateMany({
+            where: { id: contactId, OR: [{ lastDmSentAt: null }, { lastDmSentAt: { lt: lastSent } }] },
+            data: { lastDmSentAt: lastSent },
+          });
+        }
       }
       const linked = await db.dmLog.updateMany({
         where: { workspaceId: g.workspaceId, commenterId: g.commenterId, contactId: null },
-        data: { contactId: identity!.contactId },
+        data: { contactId },
       });
       result.logsLinked += linked.count;
     }

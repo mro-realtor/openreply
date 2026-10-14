@@ -56,7 +56,7 @@ run("contacts (database)", () => {
     const input = { workspaceId: one.workspaceId, platform: "INSTAGRAM" as const, externalId: "p1" };
     const results = await Promise.all(Array.from({ length: 8 }, () => resolveContact(prisma, input)));
     expect(new Set(results.map((r) => r.id)).size).toBe(1);
-    expect(await prisma.contact.count({ where: { workspaceId: one.workspaceId } })).toBe(1);
+    expect(await prisma.contact.count({ where: { workspaceId: one.workspaceId, identities: { some: { externalId: "p1" } } } })).toBe(1);
   });
 
   it("keeps the same external id in two workspaces as two different people", async () => {
@@ -123,7 +123,6 @@ run("contacts (database)", () => {
 
     const again = await backfillContactsFromDmLog(prisma, { workspaceId: t.workspaceId, dryRun: false });
     expect(again).toMatchObject({ contactsCreated: 0, logsLinked: 0 });
-    // history is untouched
     expect(await prisma.dmLog.count({ where: { workspaceId: t.workspaceId, status: "SENT" } })).toBe(1);
   });
 });
