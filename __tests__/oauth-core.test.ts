@@ -109,7 +109,7 @@ describe("metadata", () => {
     expect(meta.code_challenge_methods_supported).toEqual(["S256"]);
     expect(meta.token_endpoint_auth_methods_supported).toEqual(["none"]);
     expect(meta.authorization_response_iss_parameter_supported).toBe(true);
-    expect(meta.scopes_supported).toEqual(["read", "drafts:write"]);
+    expect(meta.scopes_supported).toEqual(["read", "drafts:write", "contacts:read"]);
     expect(meta.registration_endpoint).toBe("https://app.example.test/api/oauth/register");
   });
   it("points the MCP resource at this issuer", () => {

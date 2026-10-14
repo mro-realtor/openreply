@@ -1,6 +1,6 @@
 # OpenReply development checkpoint
 
-Last updated: 2026-10-14 (after PR #8). Written so work can resume cold.
+Last updated: 2026-10-14 (after PR #9). Written so work can resume cold.
 
 ## Branch and PR stack (all draft, nothing merged, nothing deployed)
 
@@ -13,7 +13,8 @@ Last updated: 2026-10-14 (after PR #8). Written so work can resume cold.
 | 5 | #5 | feature/outbound-webhooks | feature/ig-connection-maintenance | green (run 38540828642, head 2bcafc1) |
 | 6 | #6 | feature/contact-consent-assignment | feature/outbound-webhooks | green (run 38541799077, head 388d415) |
 | 7 | #7 | feature/campaign-settings | feature/contact-consent-assignment | green (run 38543508899, head b25ac5a) |
-| 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38587899458, head f0ac245) |
+| 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38588391103, head db15535) |
+| 9 | #9 | feature/contacts-dashboard-api | feature/campaign-dashboard-api | green (run 38609523231, head 35ef053) |
 
 Next branch: stack on feature/campaign-dashboard-api. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
 
@@ -64,3 +65,9 @@ Next branch: stack on feature/campaign-dashboard-api. Every new branch stacks on
 ## Hard gates (need Marvin's explicit approval)
 
 Merging into main, production deploy, production database migrations, activating campaigns, sending live messages, changing live Meta authorizations, enabling API, MCP or OAuth flags in production. Never show secret values in logs, responses, commits or reports. Never claim a test passed unless it ran. Never use em dashes.
+
+## Merge and deploy order
+
+See docs/dependency-map.md and docs/deployment.md. IG_MAINTENANCE_ENABLED is now opt-in (owner approved): the worker timer and /api/cron/refresh-tokens do nothing toward Meta unless it is exactly "true". Applied identically on #4 to #9. Deployment guide still needs a real rollback rehearsal on a scratch database before production; none has been done.
+
+Comment polling is opt-in via COMMENT_POLLING_ENABLED (owner approved), applied identically on #4 to #9, independent of IG_MAINTENANCE_ENABLED. An existing deployment must set it to true on the worker before deploying to keep polling. Background job audit is in docs/deployment.md section 1. No GoHighLevel, Retell, n8n or AI provider calls exist in the code.

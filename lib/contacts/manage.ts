@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/app/generated/prisma/client";
 import { buildPage, cursorWhere, decodeCursor, pageOrder, parseLimit } from "@/lib/api/pagination";
+import { redactString } from "@/lib/api/redact";
 import { emitOutbound } from "@/lib/outbound/events";
 
 type Db = PrismaClient;
@@ -21,7 +22,7 @@ export const CONTACT_SELECT = {
   consentSource: true,
   assignedToUserId: true,
   assignedAt: true,
-  identities: { select: { platform: true, externalId: true, handle: true } },
+  identities: { select: { id: true, platform: true, externalId: true, handle: true } },
 } as const;
 
 interface ContactRow {
@@ -39,10 +40,33 @@ interface ContactRow {
   consentSource: string | null;
   assignedToUserId: string | null;
   assignedAt: Date | null;
-  identities: { platform: string; externalId: string; handle: string | null }[];
+  identities: { id: string; platform: string; externalId: string; handle: string | null }[];
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
+
+/**
+ * Platforms a contact identity can be linked to. A new platform (for example a CRM)
+ * is added here and in the SocialPlatform enum in one reviewed migration, so a
+ * lookup for an unknown platform is a clear 400 instead of a database error.
+ */
+export const IDENTITY_PLATFORMS = ["INSTAGRAM"] as const;
+
+export type FollowUpState = "OPTED_OUT" | "HUMAN_TAKEOVER" | "ASSIGNED" | "UNASSIGNED";
+
+/**
+ * Who is dealing with this person right now. Derived, never stored, and not a
+ * sales pipeline stage: pipeline stages belong in the CRM, not here.
+ */
+export function deriveFollowUpState(row: {
+  status: string;
+  humanTakeoverAt: Date | null;
+  assignedToUserId: string | null;
+}): FollowUpState {
+  if (row.status === "OPTED_OUT") return "OPTED_OUT";
+  if (row.humanTakeoverAt) return "HUMAN_TAKEOVER";
+  return row.assignedToUserId ? "ASSIGNED" : "UNASSIGNED";
+}
 
 export function toContactView(row: ContactRow) {
   return {
@@ -62,7 +86,8 @@ export function toContactView(row: ContactRow) {
     },
     assignedToUserId: row.assignedToUserId,
     assignedAt: iso(row.assignedAt),
-    identities: row.identities.map((i) => ({ platform: i.platform, externalId: i.externalId, handle: i.handle })),
+    followUpState: deriveFollowUpState(row),
+    identities: row.identities.map((i) => ({ id: i.id, platform: i.platform, externalId: i.externalId, handle: i.handle })),
   };
 }
 
@@ -73,6 +98,8 @@ export interface ListInput {
   status?: string | null;
   consent?: string | null;
   q?: string | null;
+  /** Exact lookup of one linked identity, written PLATFORM:externalId (for example INSTAGRAM:1784...). */
+  identity?: string | null;
   limit?: string | number | null;
   cursor?: string | null;
 }
@@ -85,6 +112,17 @@ export async function listContacts(db: Db, input: ListInput) {
   if (input.consent && !CONSENTS.includes(input.consent)) return fail(400, "consent must be UNKNOWN, GRANTED or WITHDRAWN");
   const q = input.q?.trim();
   if (q && q.length > 100) return fail(400, "q must be at most 100 characters");
+
+  let identityFilter: { identities: { some: { platform: "INSTAGRAM"; externalId: string } } } | null = null;
+  if (input.identity) {
+    const at = input.identity.indexOf(":");
+    const platform = at > 0 ? input.identity.slice(0, at).toUpperCase() : "";
+    const externalId = at > 0 ? input.identity.slice(at + 1).trim() : "";
+    if (!(IDENTITY_PLATFORMS as readonly string[]).includes(platform) || !externalId || externalId.length > 200) {
+      return fail(400, `identity must look like ${IDENTITY_PLATFORMS[0]}:<platform id>`);
+    }
+    identityFilter = { identities: { some: { platform: platform as "INSTAGRAM", externalId } } };
+  }
 
   let limit: number;
   let cursor;
@@ -110,10 +148,11 @@ export async function listContacts(db: Db, input: ListInput) {
             OR: [
               { displayName: { contains: q, mode: "insensitive" as const } },
               { identities: { some: { handle: { contains: q, mode: "insensitive" as const } } } },
+              { identities: { some: { externalId: q } } },
             ],
           }
         : {}),
-      AND: [cursorWhere(cursor)],
+      AND: [cursorWhere(cursor), ...(identityFilter ? [identityFilter] : [])],
     },
     select: CONTACT_SELECT,
     orderBy: pageOrder(),
@@ -135,6 +174,71 @@ export async function getContact(db: Db, workspaceId: string, id: string) {
   return ok({
     ...toContactView(row),
     consentHistory: events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() })),
+  });
+}
+
+/**
+ * What happened between this person and the workspace's campaigns, newest first.
+ * Read only: it never contacts anyone. The text of the comment is returned only when
+ * the caller is a signed-in teammate (includeContent), never to API tokens or MCP.
+ */
+export async function listContactHistory(
+  db: Db,
+  input: {
+    workspaceId: string;
+    contactId: string;
+    includeContent: boolean;
+    limit?: string | number | null;
+    cursor?: string | null;
+  }
+) {
+  let limit: number;
+  let cursor;
+  try {
+    limit = parseLimit(input.limit);
+    cursor = decodeCursor(input.cursor);
+  } catch {
+    return fail(400, "Invalid limit or cursor");
+  }
+  const contact = await db.contact.findFirst({
+    where: { id: input.contactId, workspaceId: input.workspaceId },
+    select: { id: true },
+  });
+  if (!contact) return fail(404, "Contact not found");
+
+  const rows = await db.dmLog.findMany({
+    where: { workspaceId: input.workspaceId, contactId: contact.id, ...cursorWhere(cursor) },
+    select: {
+      id: true,
+      status: true,
+      matchedKeyword: true,
+      dmSentAt: true,
+      errorMessage: true,
+      publicReplySentAt: true,
+      createdAt: true,
+      commentText: true,
+      automation: { select: { id: true, name: true } },
+      instagramAccount: { select: { username: true } },
+    },
+    orderBy: pageOrder(),
+    take: limit + 1,
+  });
+  const page = buildPage(rows, limit, (r) => r.createdAt);
+  return ok({
+    items: page.items.map((r) => ({
+      id: r.id,
+      channel: "instagram_dm" as const,
+      campaign: { id: r.automation.id, name: r.automation.name },
+      account: r.instagramAccount.username,
+      status: r.status,
+      matchedKeyword: r.matchedKeyword,
+      dmSentAt: iso(r.dmSentAt),
+      publicReplySentAt: iso(r.publicReplySentAt),
+      errorMessage: r.errorMessage ? redactString(r.errorMessage) : null,
+      createdAt: r.createdAt.toISOString(),
+      ...(input.includeContent ? { commentText: r.commentText } : {}),
+    })),
+    nextCursor: page.nextCursor,
   });
 }
 

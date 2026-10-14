@@ -15,12 +15,17 @@ export const SCOPE_DEFINITIONS = {
     description: "Create and edit inactive draft campaigns",
     issuable: true,
   },
+  "contacts:read": {
+    description:
+      "View contacts: people, linked platform identities, assignment, consent and conversation history without message text",
+    issuable: true,
+  },
   "campaigns:modify": {
     description: "Edit campaigns that are already active (reserved)",
     issuable: false,
   },
   "leads:read": {
-    description: "Read lead and contact data (reserved)",
+    description: "Read comment text and message content of contacts (reserved)",
     issuable: false,
   },
   send: {

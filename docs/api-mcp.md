@@ -201,3 +201,7 @@ and the four client checks above against a server started with the flags on.
 
 Not covered: a real production database, Hermes Agent or OpenClaw instances, the Claude connector UI, ChatGPT itself,
 and the dashboard and consent screen in a real browser (CI drives them over HTTP with a seeded session).
+
+## Contacts (read only, `contacts:read`)
+
+Contacts are read through `GET /api/v1/contacts`, `/api/v1/contacts/{id}` and `/api/v1/contacts/{id}/history`, and through the MCP tools `list_contacts`, `get_contact` and `list_contact_history`. All are workspace scoped, never return comment text, and never send or change anything. See `docs/contacts.md` for the fields, the per-channel consent rules and how identities work.

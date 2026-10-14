@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { isContactsDedupEnabled } from "@/lib/contacts/config";
 import { listContacts } from "@/lib/contacts/manage";
 import { getCurrentWorkspaceContext } from "@/lib/workspace-access";
 
@@ -21,9 +22,11 @@ export async function GET(request: Request) {
     status: sp.get("status"),
     consent: sp.get("consent"),
     q: sp.get("q"),
+    identity: sp.get("identity"),
     limit: sp.get("limit"),
     cursor: sp.get("cursor"),
   });
   if (!res.ok) return NextResponse.json({ success: false, error: res.error }, { status: res.status });
-  return NextResponse.json({ success: true, data: res.value });
+  // contactsEnabled lets the page explain an empty list when contact tracking is switched off.
+  return NextResponse.json({ success: true, data: { ...res.value, contactsEnabled: isContactsDedupEnabled() } });
 }

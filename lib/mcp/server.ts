@@ -22,6 +22,7 @@ import {
   listCampaigns,
   updateDraftCampaign,
 } from "@/lib/services/campaigns";
+import { getContactForApi, listContactHistoryForApi, listContactsForApi } from "@/lib/services/contacts";
 import { listCampaignLogs } from "@/lib/services/logs";
 
 const READ_ONLY = {
@@ -232,6 +233,56 @@ export function createMcpServer(db: Db, ctx: ApiContext): McpServer {
       annotations: READ_ONLY,
     },
     async (args) => ({ ...(await listCampaignLogs(db, ctx, args)) })
+  );
+
+  tool(
+    "list_contacts",
+    "contacts:read",
+    {
+      title: "List contacts",
+      description:
+        "Lists people who interacted with this workspace's Instagram accounts: linked identities, assignment, Instagram DM consent and opt-out. Read-only. Does not message anyone and never includes comment text.",
+      inputSchema: z
+        .object({
+          ...paging,
+          q: z.string().max(100).optional().describe("Search by name, handle or platform id"),
+          status: z.enum(["ACTIVE", "OPTED_OUT"]).optional(),
+          consent: z.enum(["UNKNOWN", "GRANTED", "WITHDRAWN"]).optional().describe("Instagram DM consent"),
+          assignedTo: z.string().optional().describe("unassigned, or a teammate user id"),
+          identity: z.string().optional().describe("Exact lookup, written PLATFORM:externalId, for example INSTAGRAM:1784..."),
+        })
+        .strict(),
+      annotations: READ_ONLY,
+    },
+    async (args) => ({ ...(await listContactsForApi(db, ctx, args)) })
+  );
+
+  tool(
+    "get_contact",
+    "contacts:read",
+    {
+      title: "Get contact",
+      description:
+        "Returns one contact with linked identities, follow-up state, assignment, opt-out and the consent history for Instagram DM. SMS and voice consent are reported as NOT_TRACKED. Read-only.",
+      inputSchema: z.object({ contactId: z.string().min(1) }).strict(),
+      annotations: READ_ONLY,
+    },
+    async ({ contactId }) => ({ ...(await getContactForApi(db, ctx, contactId)) }),
+    { targetId: (a) => a.contactId }
+  );
+
+  tool(
+    "list_contact_history",
+    "contacts:read",
+    {
+      title: "List contact campaign history",
+      description:
+        "Lists campaign activity for one contact (campaign, keyword, delivery status, timestamps), newest first. Never includes comment text. Read-only.",
+      inputSchema: z.object({ contactId: z.string().min(1), ...paging }).strict(),
+      annotations: READ_ONLY,
+    },
+    async ({ contactId, ...rest }) => ({ ...(await listContactHistoryForApi(db, ctx, contactId, rest)) }),
+    { targetId: (a) => a.contactId }
   );
 
   tool(
