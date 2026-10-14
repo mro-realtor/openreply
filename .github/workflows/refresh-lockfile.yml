@@ -1,7 +1,9 @@
 name: Refresh lockfile (temporary)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [feature/api-mcp]
+    paths: [".github/workflows/refresh-lockfile.yml"]
 
 permissions:
   contents: write
@@ -9,7 +11,6 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/feature/api-mcp'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
