@@ -29,6 +29,9 @@ export const CAMPAIGN_SELECT = {
   requireFollow: true,
   followPromptMessage: true,
   followPromptButtonLabel: true,
+  followGateStrict: true,
+  textOnly: true,
+  defaultAssigneeUserId: true,
   followUpEnabled: true,
   followUpMessage: true,
   followUpDelayMinutes: true,
@@ -66,6 +69,9 @@ export interface CampaignRow {
   requireFollow: boolean;
   followPromptMessage: string | null;
   followPromptButtonLabel: string | null;
+  followGateStrict: boolean;
+  textOnly: boolean;
+  defaultAssigneeUserId: string | null;
   followUpEnabled: boolean;
   followUpMessage: string | null;
   followUpDelayMinutes: number;
@@ -138,6 +144,11 @@ export function toCampaignDto(row: CampaignRow) {
       enabled: row.requireFollow,
       promptMessage: row.followPromptMessage,
       promptButtonLabel: row.followPromptButtonLabel,
+      strict: row.followGateStrict,
+    },
+    settings: {
+      textOnly: row.textOnly,
+      defaultAssigneeUserId: row.defaultAssigneeUserId,
     },
     trackedLinks: row.trackedLinks.map((link) => ({
       id: link.id,
@@ -206,6 +217,9 @@ export function buildDraftCreateData(input: CreateDraftInput) {
     requireFollow,
     followPromptMessage: requireFollow ? input.followPromptMessage || null : null,
     followPromptButtonLabel: requireFollow ? input.followPromptButtonLabel || null : null,
+    followGateStrict: requireFollow ? (input.followGateStrict ?? false) : false,
+    textOnly: input.textOnly ?? false,
+    defaultAssigneeUserId: input.defaultAssigneeUserId ?? null,
     followUpEnabled,
     followUpMessage: followUpEnabled ? input.followUpMessage || null : null,
     followUpDelayMinutes: followUpEnabled ? (input.followUpDelayMinutes ?? 0) : 0,
@@ -235,6 +249,8 @@ export function buildDraftUpdateData(input: UpdateDraftInput) {
     "linkButtonLabel",
     "followUpDelayMinutes",
     "draftConfig",
+    "textOnly",
+    "defaultAssigneeUserId",
   ] as const) {
     copy(key);
   }
@@ -273,7 +289,11 @@ export function buildDraftUpdateData(input: UpdateDraftInput) {
     if (!input.requireFollow) {
       data.followPromptMessage = null;
       data.followPromptButtonLabel = null;
+      data.followGateStrict = false;
     }
+  }
+  if (input.requireFollow !== false && input.followGateStrict !== undefined) {
+    data.followGateStrict = input.followGateStrict;
   }
   if (input.requireFollow !== false) {
     if (input.followPromptMessage !== undefined) {

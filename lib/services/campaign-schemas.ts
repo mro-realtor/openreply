@@ -69,6 +69,14 @@ const draftFields = {
   requireFollow: z.boolean().optional(),
   followPromptMessage: optionalText(1000),
   followPromptButtonLabel: optionalText(20),
+  // Only a confirmed follower gets the link. Needs requireFollow.
+  followGateStrict: z.boolean().optional(),
+
+  // Plain text with the link inline, no buttons.
+  textOnly: z.boolean().optional(),
+
+  // New people from this campaign go to this teammate (a member of the workspace).
+  defaultAssigneeUserId: z.string().min(1).optional().nullable(),
 
   // Follow-up
   followUpEnabled: z.boolean().optional(),

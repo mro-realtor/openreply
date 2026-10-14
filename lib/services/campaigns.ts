@@ -8,6 +8,7 @@ import {
   parseLimit,
 } from "@/lib/api/pagination";
 import type { Channel, ApiContext, Db } from "@/lib/api/types";
+import { validateComposerSettings } from "@/lib/campaigns/settings";
 import {
   buildDraftCreateData,
   buildDraftUpdateData,
@@ -85,6 +86,18 @@ export async function getCampaign(db: Db, ctx: ApiContext, id: string) {
   };
 }
 
+/** The default teammate has to belong to this workspace. */
+async function assertAssignee(db: Db, workspaceId: string, userId: string | null | undefined) {
+  if (!userId) return;
+  const member = await db.workspaceMember.findFirst({
+    where: { workspaceId, userId },
+    select: { id: true },
+  });
+  if (!member) {
+    throw apiErrors.validation("The default teammate must be a member of this workspace");
+  }
+}
+
 export async function createDraftCampaign(
   db: Db,
   actor: Actor,
@@ -109,6 +122,14 @@ export async function createDraftCampaign(
   }
 
   const data = buildDraftCreateData(input);
+  const settingsError = validateComposerSettings({
+    requireFollow: data.requireFollow,
+    followGateStrict: input.followGateStrict ?? false,
+    textOnly: data.textOnly,
+    openingDmEnabled: data.openingDmEnabled,
+  });
+  if (settingsError) throw apiErrors.validation(settingsError);
+  await assertAssignee(db, ctx.workspaceId, data.defaultAssigneeUserId);
   const link = input.trackedDestinationUrl
     ? [newTrackedLinkData(ctx.workspaceId, input.trackedDestinationUrl)]
     : [];
@@ -148,12 +169,33 @@ export async function updateDraftCampaign(
 
   const existing = await db.automation.findFirst({
     where: { id, workspaceId: ctx.workspaceId },
-    select: { id: true, isActive: true, isDraft: true },
+    select: {
+      id: true,
+      isActive: true,
+      isDraft: true,
+      requireFollow: true,
+      followGateStrict: true,
+      textOnly: true,
+      openingDmEnabled: true,
+    },
   });
   if (!existing) throw apiErrors.notFound("Campaign");
   if (existing.isActive || !existing.isDraft) throw apiErrors.notDraft();
 
   const data = buildDraftUpdateData(input);
+
+  // The settings have to make sense as a whole, not just the fields sent.
+  const requireFollow = input.requireFollow ?? existing.requireFollow;
+  const settingsError = validateComposerSettings({
+    requireFollow,
+    followGateStrict: requireFollow
+      ? (input.followGateStrict ?? existing.followGateStrict)
+      : false,
+    textOnly: input.textOnly ?? existing.textOnly,
+    openingDmEnabled: input.openingDmEnabled ?? existing.openingDmEnabled,
+  });
+  if (settingsError) throw apiErrors.validation(settingsError);
+  await assertAssignee(db, ctx.workspaceId, input.defaultAssigneeUserId);
 
   // The draft conditions are repeated in the write itself, so a human who
   // activates the campaign between the check above and this update wins.

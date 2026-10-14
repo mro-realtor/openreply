@@ -28,6 +28,19 @@ of the workspace. It never overrides an existing assignee. When a person is
 assigned this way a `contact.assigned` event is emitted with `via: campaign_default`.
 If the teammate is later deleted the default is cleared and the campaign keeps running.
 
-## Not yet included
-Dashboard controls (toggles, Save Draft button, teammate picker) and exposure
-through the v1 API and MCP are separate follow-up changes.
+## Dashboard
+The campaign builder has a strict check toggle under the follow requirement, a
+"text only, no buttons" toggle, a "Who follows up" teammate picker, and a Save
+draft button on new campaigns. Turning text only on switches the follow
+requirement and the opening DM off, and turning either of those on switches text
+only off, so a combination that cannot work is never sent.
+
+## REST and MCP (drafts only)
+`POST /api/v1/campaigns`, `PATCH /api/v1/campaigns/{id}` and the MCP tools
+`create_draft_campaign` and `update_draft_campaign` accept `followGateStrict`,
+`textOnly` and `defaultAssigneeUserId`. The same combination rules apply, checked
+against the saved draft on updates. The teammate must belong to the token's
+workspace. Campaign responses show `followGate.strict` and
+`settings: { textOnly, defaultAssigneeUserId }`. These tools still create and edit
+inactive drafts only: `isActive` and `isDraft` are rejected, and a person turns a
+campaign on in the dashboard.
