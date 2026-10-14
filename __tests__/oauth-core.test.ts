@@ -179,7 +179,7 @@ describe("authorize request validation", () => {
     state: "xyz",
     codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
     codeChallengeMethod: "S256",
-    resource: null,
+    resource: null as string | null,
   };
 
   it("accepts a good request", async () => {
