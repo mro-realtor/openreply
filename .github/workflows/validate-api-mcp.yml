@@ -73,8 +73,14 @@ jobs:
       - name: Start app with API and MCP enabled (CI only)
         run: |
           API_V1_ENABLED=true MCP_ENABLED=true npx next start -p 3000 > server.log 2>&1 &
-          for i in $(seq 1 40); do curl -sf http://localhost:3000/api/v1/health && break; sleep 2; done
-          curl -sf http://localhost:3000/api/v1/health
+          # An unauthenticated POST must be refused with 401. That proves the server is up, the MCP flag is on, and anonymous access is closed.
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/mcp -H 'Content-Type: application/json' -d '{}' || true)
+            [ "$code" = "401" ] && break
+            sleep 2
+          done
+          echo "anonymous MCP request -> HTTP $code"
+          test "$code" = "401"
       - name: Seed interop tokens
         run: |
           node scripts/ci/seed-interop.mjs > seed.out
