@@ -4,7 +4,7 @@ name: Validate API and MCP
 # Nothing here touches production, enables production flags, or sends messages.
 on:
   push:
-    branches: [feature/api-mcp]
+    branches: ["feature/**"]
   workflow_dispatch:
 
 permissions:
@@ -64,14 +64,14 @@ jobs:
       - name: Schema matches migrations (no drift)
         run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
       - name: Database integration tests
-        run: RUN_DB_TESTS=1 npx vitest run __tests__/db-integration.test.ts
+        run: RUN_DB_TESTS=1 npx vitest run __tests__/db-integration.test.ts __tests__/oauth-integration.test.ts
       - name: Upgrade path (legacy data, new migration, rollback)
         run: bash scripts/ci/upgrade-path.sh
       - name: Production build
         run: npm run build
       - name: Start app with API and MCP enabled (CI only)
         run: |
-          API_V1_ENABLED=true MCP_ENABLED=true npx next start -p 3000 > server.log 2>&1 &
+          API_V1_ENABLED=true MCP_ENABLED=true OAUTH_ENABLED=true npx next start -p 3000 > server.log 2>&1 &
           # An unauthenticated POST must be refused with 401. That proves the server is up, the MCP flag is on, and anonymous access is closed.
           for i in $(seq 1 40); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/mcp -H 'Content-Type: application/json' -d '{}' || true)
@@ -85,6 +85,7 @@ jobs:
           node scripts/ci/seed-interop.mjs > seed.out
           sed -n 's/^READ_TOKEN=//p' seed.out | { read v; echo "::add-mask::$v"; echo "READ_TOKEN=$v" >> "$GITHUB_ENV"; }
           sed -n 's/^DRAFT_TOKEN=//p' seed.out | { read v; echo "::add-mask::$v"; echo "DRAFT_TOKEN=$v" >> "$GITHUB_ENV"; }
+          sed -n 's/^SESSION_TOKEN=//p' seed.out | { read v; echo "::add-mask::$v"; echo "SESSION_TOKEN=$v" >> "$GITHUB_ENV"; }
           rm seed.out
           echo "MCP_URL=http://localhost:3000/api/mcp" >> "$GITHUB_ENV"
       - name: Client 1, raw JSON-RPC over HTTP (curl)
@@ -95,6 +96,8 @@ jobs:
         run: |
           python3 -m pip install --quiet "mcp==1.13.1" "pydantic==2.11.7"
           python3 scripts/ci/mcp_py_client.py
+      - name: Client 5, TypeScript MCP SDK OAuth 2.1 flow (discovery, registration, PKCE, refresh)
+        run: node scripts/ci/oauth-ts-client.mjs
       - name: Client 4, MCP Inspector CLI
         run: |
           npx --yes @modelcontextprotocol/inspector@0.17.2 --cli "$MCP_URL" --transport http \

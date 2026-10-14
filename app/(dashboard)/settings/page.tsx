@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import type { AccountOption } from "@/components/account-select";
 import { ApiTokensCard } from "@/components/api-tokens-card";
+import { ConnectedAppsCard } from "@/components/connected-apps-card";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
 
 interface SettingsData {
@@ -322,6 +323,8 @@ export default function SettingsPage() {
       </section>
 
       <ApiTokensCard />
+
+      <ConnectedAppsCard />
 
       <section className="panel rounded p-4 sm:p-6">
         <h2 className="text-base font-semibold mb-6">Usage</h2>

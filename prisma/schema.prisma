@@ -370,11 +370,90 @@ model ApiToken {
   lastUsedAt      DateTime?
   revokedAt       DateTime?
   createdAt       DateTime  @default(now())
+  /// Set when the token was issued through OAuth. Revoking the grant revokes it.
+  grantId         String?
 
   workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   idempotencyKeys IdempotencyKey[]
 
   @@index([workspaceId])
+  @@index([grantId])
+}
+
+/// OAuth 2.1 client registered by Dynamic Client Registration (public client, PKCE).
+model OAuthClient {
+  id           String   @id @default(cuid())
+  clientId     String   @unique
+  name         String
+  redirectUris String[]
+  createdAt    DateTime @default(now())
+
+  grants          OAuthGrant[]
+  authorizationRequests OAuthAuthorizationRequest[]
+}
+
+/// A pending authorization the signed-in owner has not yet approved or denied.
+/// The id is a random secret that only the browser redirected to the consent page knows.
+model OAuthAuthorizationRequest {
+  id            String    @id
+  clientRefId   String
+  userId        String
+  redirectUri   String
+  scopes        String[]
+  state         String?
+  codeChallenge String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  client OAuthClient @relation(fields: [clientRefId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// What an owner approved: one client, one workspace, a set of scopes.
+model OAuthGrant {
+  id          String    @id @default(cuid())
+  clientRefId String
+  userId      String
+  workspaceId String
+  scopes      String[]
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  client        OAuthClient            @relation(fields: [clientRefId], references: [id], onDelete: Cascade)
+  codes         OAuthAuthorizationCode[]
+  refreshTokens OAuthRefreshToken[]
+
+  @@index([workspaceId])
+}
+
+model OAuthAuthorizationCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  grantId       String
+  redirectUri   String
+  codeChallenge String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+}
+
+model OAuthRefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  grantId   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
 }
 
 /// Append-only record of API, MCP and token-management actions. No foreign

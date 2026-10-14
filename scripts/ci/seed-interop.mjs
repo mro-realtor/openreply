@@ -28,6 +28,14 @@ for (const [id, name, scopes, t] of [
     [id, name, t.secret.slice(0, 12), t.hash, scopes]
   );
 }
+// A real database session for the owner, so the OAuth consent step can be done
+// over HTTP exactly as a signed-in browser would (Auth.js database sessions).
+const sessionToken = randomBytes(24).toString("hex");
+await client.query(
+  `INSERT INTO "Session"(id,"sessionToken","userId",expires) VALUES('ci-session',$1,'ci-user',now()+interval '1 hour')`,
+  [sessionToken]
+);
 await client.end();
 console.log(`READ_TOKEN=${read.secret}`);
 console.log(`DRAFT_TOKEN=${draft.secret}`);
+console.log(`SESSION_TOKEN=${sessionToken}`);
