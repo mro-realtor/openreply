@@ -84,6 +84,7 @@ model Workspace {
   linkClicks        LinkClick[]
   webhookEvents     WebhookEvent[]
   operationalEvents OperationalEvent[]
+  apiTokens         ApiToken[]
 
   @@index([ownerId])
 }
@@ -199,6 +200,15 @@ model Automation {
   publicReplyMessage String?
   publicReplyMessages String[] @default([])
   isActive       Boolean @default(true)
+  // True for campaigns created through the admin API / MCP that a human has
+  // not yet reviewed and activated. A draft is always inactive. Every send
+  // path already filters on isActive, so drafts never fire. Activating a
+  // campaign from the dashboard clears this flag.
+  isDraft        Boolean @default(false)
+  // Settings captured by API/MCP drafts that no runtime feature reads yet
+  // (conversation mode, lead capture fields, intended assignee). Inert until
+  // the matching features exist.
+  draftConfig    Json?
   wholeWordMatch Boolean @default(true)
   reportShareSlug    String? @unique
   reportShareEnabled Boolean @default(true)
@@ -343,6 +353,67 @@ model OperationalEvent {
   @@index([source])
   @@index([level])
   @@index([createdAt])
+}
+
+/// Machine credential for the admin REST API and MCP server. Only the SHA-256
+/// hash of the secret is stored; the secret itself is shown once at creation.
+model ApiToken {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  createdByUserId String?
+  name            String
+  /// First characters of the secret, kept so a token can be recognised in the UI.
+  tokenPrefix     String
+  tokenHash       String    @unique
+  scopes          String[]
+  expiresAt       DateTime
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([workspaceId])
+}
+
+/// Append-only record of API, MCP and token-management actions. No foreign
+/// keys on purpose, so history survives token or workspace deletion.
+model AuditLog {
+  id           String   @id @default(cuid())
+  workspaceId  String?
+  apiTokenId   String?
+  actorUserId  String?
+  /// REST | MCP | DASHBOARD
+  channel      String
+  action       String
+  targetType   String?
+  targetId     String?
+  /// SUCCESS | DENIED | ERROR
+  outcome      String
+  details      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([apiTokenId])
+  @@index([action])
+}
+
+/// Replay protection for mutating API calls that carry an Idempotency-Key.
+model IdempotencyKey {
+  id             String   @id @default(cuid())
+  apiTokenId     String
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  apiToken ApiToken @relation(fields: [apiTokenId], references: [id], onDelete: Cascade)
+
+  @@unique([apiTokenId, key])
+  @@index([expiresAt])
 }
 
 enum WorkspaceRole {
