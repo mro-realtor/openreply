@@ -29,6 +29,7 @@ vi.mock("@/lib/oauth/limit", () => ({
 
 import { prisma } from "@/lib/db/client";
 import { authenticateBearer } from "@/lib/api/auth";
+import { hashApiToken } from "@/lib/api/tokens";
 import type { RateLimitStore } from "@/lib/api/rate-limit";
 import { POST as register } from "@/app/api/oauth/register/route";
 import { GET as authorize } from "@/app/api/oauth/authorize/route";
@@ -314,7 +315,11 @@ describe.skipIf(!enabled)("oauth integration", () => {
         grant_type: "authorization_code", client_id: cid, code: location.searchParams.get("code")!, redirect_uri: REDIRECT, code_verifier: verifier,
       }))
     ).json();
-    const grant = await prisma.oAuthGrant.findFirstOrThrow({ where: { workspaceId, revokedAt: null } });
+    const issued = await prisma.apiToken.findUniqueOrThrow({
+      where: { tokenHash: hashApiToken(tokens.access_token) },
+      select: { grantId: true },
+    });
+    const grant = { id: issued.grantId! };
 
     // Another workspace's owner cannot see or revoke it.
     state.ctx = { userId: otherUserId, workspaceId: otherWorkspaceId, role: "OWNER" };

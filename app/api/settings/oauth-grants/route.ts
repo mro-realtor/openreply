@@ -31,7 +31,8 @@ export async function GET() {
   const { context } = auth;
 
   const grants = await prisma.oAuthGrant.findMany({
-    where: { workspaceId: context.workspaceId, revokedAt: null },
+    // Only grants whose code was actually exchanged; an approved-but-never-used request is not a connection.
+    where: { workspaceId: context.workspaceId, revokedAt: null, refreshTokens: { some: {} } },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
