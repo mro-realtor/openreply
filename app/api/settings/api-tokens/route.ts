@@ -57,7 +57,7 @@ export async function GET() {
   const { context } = auth;
 
   const tokens = await prisma.apiToken.findMany({
-    where: { workspaceId: context.workspaceId },
+    where: { workspaceId: context.workspaceId, grantId: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
