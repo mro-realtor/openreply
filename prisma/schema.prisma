@@ -23,6 +23,7 @@ model User {
   ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
+  assignedContacts  Contact[]         @relation("ContactAssignee")
 }
 
 model Account {
@@ -580,17 +581,27 @@ model Contact {
   status          ContactStatus @default(ACTIVE)
   optedOutAt      DateTime?
   humanTakeoverAt DateTime?
+  /// Explicit permission to message this person. UNKNOWN until someone records it.
+  consentStatus    ConsentStatus @default(UNKNOWN)
+  consentUpdatedAt DateTime?
+  consentSource    String?
+  /// The teammate who owns follow up for this person.
+  assignedToUserId String?
+  assignedAt       DateTime?
   lastDmSentAt    DateTime?
   firstSeenAt     DateTime      @default(now())
   lastSeenAt      DateTime      @default(now())
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  identities SocialIdentity[]
-  dmLogs     DmLog[]
+  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo    User?                 @relation("ContactAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  identities    SocialIdentity[]
+  dmLogs        DmLog[]
+  consentEvents ContactConsentEvent[]
 
   @@index([workspaceId])
+  @@index([workspaceId, assignedToUserId])
 }
 
 model SocialIdentity {
@@ -680,4 +691,27 @@ model WebhookDelivery {
 
   @@unique([endpointId, eventId])
   @@index([status, nextAttemptAt])
+}
+
+enum ConsentStatus {
+  UNKNOWN
+  GRANTED
+  WITHDRAWN
+}
+
+/// Append-only history of consent decisions: what changed, when, where it came from, and who recorded it.
+model ContactConsentEvent {
+  id               String        @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  status           ConsentStatus
+  source           String
+  note             String?
+  recordedByUserId String?
+  createdAt        DateTime      @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, createdAt])
+  @@index([workspaceId])
 }

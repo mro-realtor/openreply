@@ -25,6 +25,8 @@ export const EVENT_TYPES = [
   "dm.failed",
   "contact.opted_out",
   "contact.human_takeover",
+  "contact.assigned",
+  "contact.consent_changed",
 ] as const;
 export type OutboundEventType = (typeof EVENT_TYPES)[number];
 
