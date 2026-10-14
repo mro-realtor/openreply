@@ -68,4 +68,4 @@ Merging into main, production deploy, production database migrations, activating
 
 ## Merge and deploy order
 
-See docs/dependency-map.md. Open decision for the owner: IG_MAINTENANCE_ENABLED defaults to on in the worker, so set it to false before the first deploy of #4 or later unless Meta token renewal is approved.
+See docs/dependency-map.md and docs/deployment.md. IG_MAINTENANCE_ENABLED is now opt-in (owner approved): the worker timer and /api/cron/refresh-tokens do nothing toward Meta unless it is exactly "true". Applied identically on #4 to #9. Deployment guide still needs a real rollback rehearsal on a scratch database before production; none has been done.
