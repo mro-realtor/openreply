@@ -1,6 +1,6 @@
 # OpenReply development checkpoint
 
-Last updated: 2026-10-14 (about 2:30 AM Pacific, after the scheduled resume). Written so work can resume cold.
+Last updated: 2026-10-14 (after PR #7). Written so work can resume cold.
 
 ## Branch and PR stack (all draft, nothing merged, nothing deployed)
 
@@ -11,8 +11,10 @@ Last updated: 2026-10-14 (about 2:30 AM Pacific, after the scheduled resume). Wr
 | 3 | #3 | feature/contacts-dedup | feature/oauth-mcp | green (head 8fbdfe0) |
 | 4 | #4 | feature/ig-connection-maintenance | feature/contacts-dedup | green (run 38521886070, head 82f9358) |
 | 5 | #5 | feature/outbound-webhooks | feature/ig-connection-maintenance | green (run 38540828642, head 2bcafc1) |
+| 6 | #6 | feature/contact-consent-assignment | feature/outbound-webhooks | green (run 38541799077, head 388d415) |
+| 7 | #7 | feature/campaign-settings | feature/contact-consent-assignment | green (run 38543508899, head b25ac5a) |
 
-Next branch: stack on feature/outbound-webhooks. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
+Next branch: stack on feature/campaign-settings. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
 
 ## Delivery mechanics
 
@@ -29,6 +31,9 @@ Next branch: stack on feature/outbound-webhooks. Every new branch stacks on the 
 
 - Outbound webhooks (PR #5): tables, signing, retries, URL safety, endpoint API, DM and contact events, worker delivery loop. Flag OUTBOUND_WEBHOOKS_ENABLED off. CI ran 35 unit and 12 database tests plus upgrade, rollback and re-apply with 13 new tables. Not tried against a real n8n or CRM.
 
+- Contact consent and lead assignment (PR #6): consent history with source, assignment between teammates, listing and filtering, events. CI ran 7 database tests plus upgrade, rollback and re-apply with 14 new tables.
+- Campaign composer settings (PR #7): strict follow gate, text-only DMs, default teammate (for Nancy), draft-safe creation and activation check (name, message, keyword). All off by default. Worker logic covered by 47 local unit tests and CI. A first CI run failed because the activation check also required a trigger post, which broke an existing test; fixed by dropping that requirement. Backend only: no dashboard controls yet.
+
 ## Not verified
 
 - Any live Meta call (refresh, subscribed_apps, force_reauth), the worker timer with real Redis, ChatGPT, Claude connector, Hermes, OpenClaw, Gemini, Muse clients, email delivery of alerts.
@@ -42,9 +47,16 @@ Next branch: stack on feature/outbound-webhooks. Every new branch stacks on the 
 
 1. DONE: feature/outbound-webhooks (PR #5). Possible later additions: a settings page card for endpoints, a cron route fallback, an example CRM receiver contract once mro-crm is chosen.
 2. AI router branch (from scratch, see blockers).
-3. Campaign composer improvements (one branch, separate tested changes): Save Draft; configurable strict Follow Gate; text-only DMs; Nancy lead assignment; explicit contact consent tracking (ties into Contact opt-out and takeover; add contacts API and UI routes, since the service exists but has none).
+3. Campaign composer UI branch: Save Draft button, strict follow and text-only toggles, default teammate picker, minimal Contacts page, workspace members endpoint. Backend for all of it is done (PRs #6 and #7). Also expose contacts and new campaign settings through v1 API and MCP (review leads:read scope, update api-core snapshot tests).
 4. Agent interoperability: Hermes first, then OpenClaw, Gemini; Agent Connections page (1c); interop testing (1d); Muse only through a supported path and treated as future until verified.
 5. After each milestone: update this file, confirm CI green, send a concise report.
+
+## Decisions for Marvin
+
+- Approve merge order for the stack (#1 to #7) and when to run production migrations.
+- Whether consent status should block first replies (currently it only records).
+- Supply original AI router components, or approve building from scratch.
+- Installing the Claude GitHub App on the repo to clear the stop hook warning.
 
 ## Hard gates (need Marvin's explicit approval)
 

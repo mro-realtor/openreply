@@ -1086,3 +1086,118 @@ describe("DM Worker — DM keyword trigger", () => {
     );
   });
 });
+
+describe("DM Worker - strict follow gate and text-only messages", () => {
+  const link = (slug: string, label = "Link") => ({ slug, label, destinationUrl: `https://example.com/${slug}` });
+  const gatedAutomation = { ...mockAutomation, requireFollow: true, trackedLinks: [] as never[] };
+
+  function followTap(payload = "followcheck:auto_789", fallback = false) {
+    return createMockPostbackJob({
+      instagramAccountId: "ig_456",
+      userId: "commenter_999",
+      payload,
+      ...(fallback ? { fallback: true } : {}),
+    });
+  }
+
+  it("normal mode still delivers the link after a tap when the follow check cannot be verified", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({ ...gatedAutomation, followGateStrict: false });
+    mockGetUserFollowStatus.mockResolvedValue(null);
+
+    await getProcessor()(followTap());
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendDirectMessageWithButton).not.toHaveBeenCalled();
+  });
+
+  it("strict mode asks again after a tap when the follow check cannot be verified", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({ ...gatedAutomation, followGateStrict: true });
+    mockGetUserFollowStatus.mockResolvedValue(null);
+
+    await getProcessor()(followTap());
+
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockReserveWorkspaceDMSend).not.toHaveBeenCalled();
+    expect(mockSendDirectMessageWithButton).toHaveBeenCalledTimes(1);
+    expect(mockSendDirectMessageWithButton.mock.calls[0][5]).toBe("followcheck:auto_789");
+  });
+
+  it("strict mode still delivers the link to a confirmed follower", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({ ...gatedAutomation, followGateStrict: true });
+    mockGetUserFollowStatus.mockResolvedValue(true);
+
+    await getProcessor()(followTap());
+
+    expect(mockSendDirectMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendDirectMessageWithButton).not.toHaveBeenCalled();
+  });
+
+  it("strict mode sends nothing on a read fallback when the follow check cannot be verified", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({ ...gatedAutomation, followGateStrict: true });
+    mockGetUserFollowStatus.mockResolvedValue(null);
+
+    await getProcessor()(followTap("reveal:auto_789", true));
+
+    expect(mockSendDirectMessage).not.toHaveBeenCalled();
+    expect(mockSendDirectMessageWithButton).not.toHaveBeenCalled();
+  });
+
+  it("text-only comment reply carries the link inline and uses no button template", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, textOnly: true, dmMessage: "Hey {username}! Here is the offer: {link}", trackedLinks: [link("abc123")] },
+    ]);
+
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
+    expect(mockSendPrivateReply).toHaveBeenCalledTimes(1);
+    expect(mockSendPrivateReply.mock.calls[0][3]).toBe("Hey commenter_user! Here is the offer: http://localhost:3000/r/abc123");
+  });
+
+  it("text-only comment reply lists a second link on its own line", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, textOnly: true, dmMessage: "Offer: {link}", trackedLinks: [link("abc123"), link("def456", "Book")] },
+    ]);
+
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReplyWithLinkButton).not.toHaveBeenCalled();
+    expect(mockSendPrivateReply.mock.calls[0][3]).toBe("Offer: http://localhost:3000/r/abc123\nhttp://localhost:3000/r/def456");
+  });
+
+  it("campaigns without text-only keep sending buttons", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([
+      { ...mockAutomation, textOnly: false, dmMessage: "Offer: {link}", trackedLinks: [link("abc123")] },
+    ]);
+
+    await getProcessor()(createMockJob());
+
+    expect(mockSendPrivateReplyWithLinkButton).toHaveBeenCalledTimes(1);
+    expect(mockSendPrivateReply).not.toHaveBeenCalled();
+  });
+
+  it("text-only reveal after a tap is a plain direct message with the link inline", async () => {
+    mockPrisma.automation.findMany.mockResolvedValue([]);
+    mockPrisma.automation.findFirst.mockResolvedValue({
+      ...mockAutomation,
+      textOnly: true,
+      requireFollow: false,
+      dmMessage: "Here you go {link}",
+      trackedLinks: [link("abc123")],
+    });
+
+    await getProcessor()(createMockPostbackJob());
+
+    expect(mockSendDirectMessageWithLinkButton).not.toHaveBeenCalled();
+    expect(mockSendDirectMessage).toHaveBeenCalledWith(
+      "decrypted_token",
+      "ig_456",
+      "commenter_999",
+      "Here you go http://localhost:3000/r/abc123"
+    );
+  });
+});

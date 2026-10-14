@@ -64,7 +64,7 @@ jobs:
       - name: Schema matches migrations (no drift)
         run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
       - name: Database integration tests
-        run: RUN_DB_TESTS=1 npx vitest run __tests__/db-integration.test.ts __tests__/oauth-integration.test.ts __tests__/contacts-integration.test.ts __tests__/ig-maintenance-integration.test.ts __tests__/ig-reconnect-integration.test.ts __tests__/outbound-integration.test.ts __tests__/contacts-manage-integration.test.ts
+        run: RUN_DB_TESTS=1 npx vitest run __tests__/db-integration.test.ts __tests__/oauth-integration.test.ts __tests__/contacts-integration.test.ts __tests__/ig-maintenance-integration.test.ts __tests__/ig-reconnect-integration.test.ts __tests__/outbound-integration.test.ts __tests__/contacts-manage-integration.test.ts __tests__/campaign-settings-integration.test.ts
       - name: Upgrade path (legacy data, new migration, rollback)
         run: bash scripts/ci/upgrade-path.sh
       - name: Production build

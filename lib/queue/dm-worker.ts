@@ -1,6 +1,7 @@
 import { Worker, type Job } from "bullmq";
 import { isContactsDedupEnabled, getCooldownHours } from "@/lib/contacts/config";
-import { decideDm, linkDmLog, resolveContact } from "@/lib/contacts/service";
+import { applyDefaultAssignee, decideDm, linkDmLog, resolveContact } from "@/lib/contacts/service";
+import { followGateAllowsReveal } from "@/lib/campaigns/settings";
 import { emitDmEventsForComment } from "@/lib/outbound/events";
 import {
   getDMQueue,
@@ -115,6 +116,7 @@ function buildInlineLinkFallback(
 type RevealAutomation = {
   dmMessage: string;
   linkButtonLabel: string | null;
+  textOnly?: boolean;
   trackedLinks: WorkerTrackedLink[];
   instagramAccount: { instagramId: string };
 };
@@ -131,16 +133,18 @@ async function sendRevealDirectMessage(
   commenterName: string | null,
   context: string
 ): Promise<void> {
-  if (automation.trackedLinks.length === 0) {
+  if (automation.trackedLinks.length === 0 || automation.textOnly) {
     await sendDirectMessage(
       accessToken,
       automation.instagramAccount.instagramId,
       userId,
-      renderMessageWithTracking({
-        message: automation.dmMessage,
-        commenterName,
-        trackedLinks: automation.trackedLinks,
-      })
+      automation.textOnly
+        ? buildInlineLinkFallback(automation.dmMessage, commenterName, automation.trackedLinks, automation.dmMessage)
+        : renderMessageWithTracking({
+            message: automation.dmMessage,
+            commenterName,
+            trackedLinks: automation.trackedLinks,
+          })
     );
     return;
   }
@@ -227,7 +231,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   });
 
   const dedupOn = isContactsDedupEnabled();
-  const gated: { automationId: string; contactId: string }[] = [];
+  const gated: { automationId: string; contactId: string; workspaceId: string; assigneeUserId: string | null }[] = [];
 
   for (const automation of automations) {
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
@@ -301,7 +305,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           continue;
         }
       }
-      gated.push({ automationId: automation.id, contactId: contact.id });
+      gated.push({
+        automationId: automation.id,
+        contactId: contact.id,
+        workspaceId: automation.workspaceId,
+        assigneeUserId: automation.defaultAssigneeUserId ?? null,
+      });
     }
 
     if (!automation.instagramAccount.accessToken) {
@@ -618,7 +627,7 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           automation.followPromptButtonLabel || "i'm following",
           `followcheck:${automation.id}`
         );
-      } else if (automation.trackedLinks.length > 0) {
+      } else if (automation.trackedLinks.length > 0 && !automation.textOnly) {
         // Try button template first; if Meta rejects it, fall back to inline links.
         const bodyText =
           renderMessageWithoutLink({
@@ -669,11 +678,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           }
         }
       } else {
-        const dmMessage = renderMessageWithTracking({
-          message: automation.dmMessage,
-          commenterName,
-          trackedLinks: automation.trackedLinks,
-        });
+        // Text-only campaigns put every link inline instead of using buttons.
+        const dmMessage = automation.textOnly
+          ? buildInlineLinkFallback(automation.dmMessage, commenterName, automation.trackedLinks, automation.dmMessage)
+          : renderMessageWithTracking({
+              message: automation.dmMessage,
+              commenterName,
+              trackedLinks: automation.trackedLinks,
+            });
         await sendPrivateReply(
           accessToken,
           automation.instagramAccount.instagramId,
@@ -723,6 +735,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
   for (const g of gated) {
     try {
       await linkDmLog(prisma, { automationId: g.automationId, commentId, contactId: g.contactId });
+      if (g.assigneeUserId) {
+        await applyDefaultAssignee(prisma, {
+          workspaceId: g.workspaceId,
+          contactId: g.contactId,
+          userId: g.assigneeUserId,
+        });
+      }
     } catch (linkError) {
       console.error("contact link failed", formatError(linkError));
     }
@@ -802,10 +821,11 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   // on a read fallback a non-follower is silently skipped — the gate must not
   // be bypassable by just reading the DM and waiting. Following, or
   // unverifiable (null), falls through and delivers the link — fail-open so a
-  // real follower is never trapped.
+  // real follower is never trapped. A campaign with the strict follow check on
+  // fails closed instead: only a confirmed follower gets the link.
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus(accessToken, userId);
-    if (follows === false) {
+    if (!followGateAllowsReveal({ strict: automation.followGateStrict ?? false, follows })) {
       if (fallback) return;
       const promptText = renderMessageWithoutLink({
         message:
