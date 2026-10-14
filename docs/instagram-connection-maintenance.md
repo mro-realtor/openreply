@@ -6,7 +6,7 @@ Status: on branch `feature/ig-connection-maintenance`. Not deployed. No live Met
 
 - Every account connects through **Instagram API with Instagram Login** (`api.instagram.com/oauth/authorize`, `graph.instagram.com`, scopes `instagram_business_*`). None use Facebook Login.
 - Each connected account stores its **own** Instagram user access token (encrypted, AES-256-GCM). There is no shared Facebook user token. An account owned by Nancy has an independent authorization from one owned by Marvin, even though both use the same Meta app. One owner's login cannot renew or break the other's.
-- Before this change a daily cron (`/api/cron/refresh-tokens`) refreshed tokens within 10 days of expiry. It kept no refresh history, no retry or backoff state, did not detect revoked logins, and never checked webhooks. A failed refresh only wrote an event nobody was prompted to read.
+- Before this change a daily cron (`/api/cron/refresh-tokens`, defined only in `vercel.json`) refreshed tokens within 10 days of expiry. On a self-hosted deployment nothing in the repo called it. It kept no refresh history, no retry or backoff state, did not detect revoked logins, and never checked webhooks. A failed refresh only wrote an event nobody was prompted to read.
 - Webhook subscription was done once at connect time and only recorded as true or false. Nothing re-checked it and nothing recorded whether events actually arrived.
 
 ## What this adds (reusing the same cron route)
@@ -23,7 +23,9 @@ Status: on branch `feature/ig-connection-maintenance`. Not deployed. No live Met
 | Settings | New "Instagram connection health" card per account: status, expiry, last renewal, next renewal, webhook state, last webhook event, who connected it, issues, Reconnect button. |
 | Reconnect | `Reconnect` starts the login for that one account with `force_reauth`. The callback refuses any other Instagram login (nothing is changed) and refuses a link used by a different signed-in person. |
 
-Running the cron more often than daily (for example every 6 hours) gives faster retries. It is safe at any frequency.
+### Who runs it
+
+The repo's `vercel.json` cron only exists on Vercel. A self-hosted deployment (Docker or EasyPanel with the long-running worker) has no Vercel cron, so unless an external scheduler calls `/api/cron/refresh-tokens` nothing would renew the tokens. The worker therefore runs the same maintenance itself, 1 minute after boot and then every 6 hours (`IG_MAINTENANCE_INTERVAL_MS`, set `IG_MAINTENANCE_ENABLED=false` to turn it off). The cron route stays for Vercel users and for manual triggering. Running both is safe: each account is locked while it is handled.
 
 ## Nancy's accounts
 
