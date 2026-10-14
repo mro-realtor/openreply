@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
 import { maintainInstagramAccounts } from "@/lib/instagram/maintenance";
 import { liveMetaOps } from "@/lib/instagram/meta-ops";
+import { isIgMaintenanceEnabled } from "@/lib/instagram/scheduler";
 
 /**
  * Daily upkeep for every connected Instagram account: refresh tokens ahead of
@@ -33,17 +34,23 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const results = await maintainInstagramAccounts(prisma, liveMetaOps, {
-    now,
-    decrypt: decryptToken,
-    encrypt: encryptToken,
-  });
+  // The upkeep renews tokens and re-subscribes webhooks, which contacts Meta.
+  // Like the worker timer, it only runs when IG_MAINTENANCE_ENABLED is exactly "true".
+  const maintenance = isIgMaintenanceEnabled();
+  const results = maintenance
+    ? await maintainInstagramAccounts(prisma, liveMetaOps, {
+        now,
+        decrypt: decryptToken,
+        encrypt: encryptToken,
+      })
+    : [];
 
   return NextResponse.json({
     success: true,
     data: {
       totalProcessed: results.length,
       workspacesReset: usageReset.count,
+      maintenance: maintenance ? "ran" : "disabled",
       results,
     },
   });

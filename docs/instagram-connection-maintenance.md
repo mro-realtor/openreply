@@ -25,7 +25,7 @@ Status: on branch `feature/ig-connection-maintenance`. Not deployed. No live Met
 
 ### Who runs it
 
-The repo's `vercel.json` cron only exists on Vercel. A self-hosted deployment (Docker or EasyPanel with the long-running worker) has no Vercel cron, so unless an external scheduler calls `/api/cron/refresh-tokens` nothing would renew the tokens. The worker therefore runs the same maintenance itself, 1 minute after boot and then every 6 hours (`IG_MAINTENANCE_INTERVAL_MS`, set `IG_MAINTENANCE_ENABLED=false` to turn it off). The cron route stays for Vercel users and for manual triggering. Running both is safe: each account is locked while it is handled.
+The repo's `vercel.json` cron only exists on Vercel. A self-hosted deployment (Docker or EasyPanel with the long-running worker) has no Vercel cron. **The upkeep is opt-in because it contacts Meta** (it renews tokens and re-subscribes webhooks). Nothing runs unless `IG_MAINTENANCE_ENABLED` is exactly `true`; a missing, empty or misspelled value (`false`, `True`, `1`, `yes`, a value with spaces) keeps it off. When it is on, the worker runs it 1 minute after boot and then every 6 hours (`IG_MAINTENANCE_INTERVAL_MS`, minimum 15 minutes, an invalid value falls back to 6 hours). The same switch guards `/api/cron/refresh-tokens`: with it off, that route still resets the monthly usage counters but does not renew tokens or contact Meta, and says `maintenance: "disabled"` in its answer. Running the worker and the cron route together is safe: each account is locked while it is handled. The worker prints one line at start saying whether the upkeep is ON or OFF.
 
 ## Nancy's accounts
 
