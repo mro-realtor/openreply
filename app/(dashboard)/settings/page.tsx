@@ -5,6 +5,7 @@ import type { AccountOption } from "@/components/account-select";
 import { ApiTokensCard } from "@/components/api-tokens-card";
 import { ConnectedAppsCard } from "@/components/connected-apps-card";
 import { InstagramConnectNotice } from "@/components/instagram-connect-notice";
+import { InstagramConnectionsCard } from "@/components/instagram-connections-card";
 
 interface SettingsData {
   workspace: {
@@ -324,6 +325,7 @@ export default function SettingsPage() {
 
       <ApiTokensCard />
 
+      <InstagramConnectionsCard />
       <ConnectedAppsCard />
 
       <section className="panel rounded p-4 sm:p-6">

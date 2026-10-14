@@ -29,6 +29,12 @@ const MESSAGES: Record<string, { tone: Tone; title: string; detail: string }> = 
     detail:
       "Only workspace owners and admins can connect an Instagram account.",
   },
+  wrong_account: {
+    tone: "error",
+    title: "That was a different Instagram account",
+    detail:
+      "To reconnect this account, log in to the same Instagram account it was connected with. Nothing was changed.",
+  },
   already_connected: {
     tone: "warning",
     title: "Account already connected",

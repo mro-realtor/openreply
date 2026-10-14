@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/client";
 import { canManageWorkspace, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 import { getBaseUrl, getMissingInstagramOAuthEnv } from "@/lib/env";
 import { createOAuthState, getAuthorizationUrl } from "@/lib/meta/oauth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const context = await getCurrentWorkspaceContext();
   if (!context) {
     return NextResponse.redirect(`${getBaseUrl()}/login`);
@@ -24,8 +25,25 @@ export async function GET() {
     );
   }
 
-  const redirectUri = `${getBaseUrl()}/api/instagram/callback`;
-  const state = createOAuthState(context.workspaceId);
+  // ?account=<id> re-authorizes one existing account without touching the others.
+  const reconnectAccountId = request.nextUrl.searchParams.get("account");
+  if (reconnectAccountId) {
+    const existing = await prisma.instagramAccount.findFirst({
+      where: { id: reconnectAccountId, workspaceId: context.workspaceId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.redirect(`${getBaseUrl()}/settings?instagram=invalid`);
+    }
+  }
 
-  return NextResponse.redirect(getAuthorizationUrl(redirectUri, state));
+  const redirectUri = `${getBaseUrl()}/api/instagram/callback`;
+  const state = createOAuthState(context.workspaceId, {
+    userId: context.userId,
+    ...(reconnectAccountId ? { reconnectAccountId } : {}),
+  });
+
+  return NextResponse.redirect(
+    getAuthorizationUrl(redirectUri, state, { forceReauth: Boolean(reconnectAccountId) })
+  );
 }
