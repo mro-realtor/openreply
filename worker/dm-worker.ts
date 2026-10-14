@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
 import { maintainInstagramAccounts } from "@/lib/instagram/maintenance";
 import { liveMetaOps } from "@/lib/instagram/meta-ops";
+import { isOutboundWebhooksEnabled } from "@/lib/outbound/config";
+import { deliverDue, liveSender } from "@/lib/outbound/deliver";
 
 const worker = createDMWorker();
 const startedAt = new Date().toISOString();
@@ -23,6 +25,11 @@ const IG_MAINTENANCE_ENABLED = process.env.IG_MAINTENANCE_ENABLED !== "false";
 const IG_MAINTENANCE_INTERVAL_MS = Number(
   process.env.IG_MAINTENANCE_INTERVAL_MS ?? 6 * 3_600_000
 );
+
+// Outbound webhooks (n8n, CRM). Sends queued events with retries. Does nothing
+// unless OUTBOUND_WEBHOOKS_ENABLED=true.
+const OUTBOUND_INTERVAL_MS = Number(process.env.OUTBOUND_DELIVERY_INTERVAL_MS ?? 15_000);
+let outboundRunning = false;
 
 console.log("[DM Worker] Started");
 
@@ -75,6 +82,26 @@ const maintenanceTimer = IG_MAINTENANCE_ENABLED
   ? setInterval(() => void maintainInstagram(), IG_MAINTENANCE_INTERVAL_MS)
   : null;
 
+async function deliverWebhooks() {
+  if (outboundRunning || !isOutboundWebhooksEnabled()) return;
+  outboundRunning = true;
+  try {
+    const summary = await deliverDue(prisma, liveSender, { decrypt: decryptToken });
+    if (summary.attempted > 0) {
+      console.log(
+        `[DM Worker] Webhooks: ${summary.attempted} tried, ${summary.delivered} delivered, ${summary.retrying} retrying, ${summary.dead} dead`
+      );
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[DM Worker] Webhook delivery failed:", message);
+  } finally {
+    outboundRunning = false;
+  }
+}
+
+const outboundTimer = setInterval(() => void deliverWebhooks(), OUTBOUND_INTERVAL_MS);
+
 // Kick off one sweep shortly after boot, then on a fixed interval.
 setTimeout(() => void poll(), 10_000);
 const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
@@ -84,6 +111,7 @@ async function shutdown(signal: string) {
   clearInterval(heartbeatTimer);
   clearInterval(pollTimer);
   if (maintenanceTimer) clearInterval(maintenanceTimer);
+  clearInterval(outboundTimer);
   await worker.close();
   process.exit(0);
 }

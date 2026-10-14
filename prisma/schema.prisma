@@ -88,6 +88,8 @@ model Workspace {
 
   @@index([ownerId])
   contacts          Contact[]
+  webhookEndpoints  WebhookEndpoint[]
+  outboxEvents      OutboxEvent[]
 }
 
 model WorkspaceMember {
@@ -610,4 +612,72 @@ enum IgConnectionStatus {
   ACTIVE
   DEGRADED
   NEEDS_RECONNECT
+}
+
+enum OutboundDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  DEAD
+}
+
+/// A receiver (for example an n8n workflow or a CRM) that wants OpenReply events.
+model WebhookEndpoint {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  name                String
+  url                 String
+  secretEncrypted     String
+  /// Empty means every event except ping.
+  eventTypes          String[]  @default([])
+  isActive            Boolean   @default(true)
+  disabledReason      String?
+  consecutiveFailures Int       @default(0)
+  lastSuccessAt       DateTime?
+  lastFailureAt       DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([workspaceId])
+}
+
+/// Something that happened, recorded once. dedupeKey makes emitting it twice harmless.
+model OutboxEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  type        String
+  payload     Json
+  dedupeKey   String
+  createdAt   DateTime @default(now())
+
+  workspace  Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@unique([workspaceId, dedupeKey])
+  @@index([workspaceId, createdAt])
+}
+
+/// One attempt-tracked send of one event to one endpoint.
+model WebhookDelivery {
+  id             String                 @id @default(cuid())
+  endpointId     String
+  eventId        String
+  status         OutboundDeliveryStatus @default(PENDING)
+  attempts       Int                    @default(0)
+  nextAttemptAt  DateTime               @default(now())
+  lockedUntil    DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event    OutboxEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, eventId])
+  @@index([status, nextAttemptAt])
 }
