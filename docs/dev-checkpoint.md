@@ -1,6 +1,6 @@
 # OpenReply development checkpoint
 
-Last updated: 2026-10-14 (after PR #8). Written so work can resume cold.
+Last updated: 2026-10-14 (after PR #9). Written so work can resume cold.
 
 ## Branch and PR stack (all draft, nothing merged, nothing deployed)
 
@@ -13,7 +13,8 @@ Last updated: 2026-10-14 (after PR #8). Written so work can resume cold.
 | 5 | #5 | feature/outbound-webhooks | feature/ig-connection-maintenance | green (run 38540828642, head 2bcafc1) |
 | 6 | #6 | feature/contact-consent-assignment | feature/outbound-webhooks | green (run 38541799077, head 388d415) |
 | 7 | #7 | feature/campaign-settings | feature/contact-consent-assignment | green (run 38543508899, head b25ac5a) |
-| 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38587899458, head f0ac245) |
+| 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38588391103, head db15535) |
+| 9 | #9 | feature/contacts-dashboard-api | feature/campaign-dashboard-api | pending |
 
 Next branch: stack on feature/campaign-dashboard-api. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
 

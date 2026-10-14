@@ -75,7 +75,7 @@ describe("api tokens", () => {
 
 describe("scopes", () => {
   it("only issues scopes whose features exist", () => {
-    expect([...ISSUABLE_SCOPES].sort()).toEqual(["drafts:write", "read"]);
+    expect([...ISSUABLE_SCOPES].sort()).toEqual(["contacts:read", "drafts:write", "read"]);
     for (const reserved of ["send", "activate", "leads:read", "campaigns:modify"]) {
       expect(isIssuableScope(reserved)).toBe(false);
     }

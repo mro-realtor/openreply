@@ -29,7 +29,31 @@ A contact can be assigned to a teammate in the workspace (for example Nancy). On
 - `GET /api/contacts/{id}` includes the last 20 consent entries
 - `PATCH /api/contacts/{id}` with any of `assignedToUserId`, `consent: { status, source, note }`, `optedOut`, `humanTakeover`
 
-This is not yet available to API tokens or MCP. That needs a reviewed permission scope and is listed as a next step.
+## Dashboard
+
+**Contacts** in the sidebar lists people with search, status, Instagram DM permission and assignee filters. A contact page shows linked identities, follow up, permission to message, and campaign activity. The pages only show information. Viewing or searching a contact never sends a message or changes anything.
+
+## API tokens and MCP (read only)
+
+A token with the `contacts:read` scope can read contacts. It is not included in `read`, so existing tokens see no change, and it is not enabled in production by this change.
+
+- `GET /api/v1/contacts` with `q`, `status`, `consent`, `assignedTo`, `identity=INSTAGRAM:<id>`, `limit`, `cursor`
+- `GET /api/v1/contacts/{id}`
+- `GET /api/v1/contacts/{id}/history`
+- MCP tools `list_contacts`, `get_contact`, `list_contact_history`
+
+Rules that hold on every route:
+
+- Everything is limited to the token's own workspace. A contact from another workspace answers 404.
+- Comment text and message content are never returned to tokens or MCP. They stay behind the reserved `leads:read` scope, which nobody can be issued yet.
+- Consent is per channel. `consent.instagramDm` is the only channel stored today. `consent.sms` and `consent.voice` always read `NOT_TRACKED`, so a CRM or voice agent must not treat Instagram permission as permission to text or call.
+- `followUpState` (`UNASSIGNED`, `ASSIGNED`, `HUMAN_TAKEOVER`, `OPTED_OUT`) is worked out from existing fields. It is not a sales stage; stages belong in the CRM.
+
+## How people are identified
+
+A contact has its own internal id that never changes. Platform ids (today the Instagram user id) are stored as linked identities under that contact. Names, handles, phone numbers and emails are never used to decide that two records are the same person, and contacts are never merged automatically. A changed Instagram username updates the handle on the same contact.
+
+Adding another source later (GoHighLevel, a phone number) means adding one new identity type through a reviewed migration, plus a verified matching rule agreed in advance. SMS and voice consent would be stored as their own records, separate from the Instagram ones. Neither is built yet.
 
 ## Events for n8n and CRMs
 
