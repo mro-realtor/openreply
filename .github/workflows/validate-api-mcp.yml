@@ -1,0 +1,104 @@
+name: Validate API and MCP
+
+# Runs only against disposable services created inside the job.
+# Nothing here touches production, enables production flags, or sends messages.
+on:
+  push:
+    branches: [feature/api-mcp]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: openreply_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/openreply_ci
+      PGPASSWORD: postgres
+      REDIS_URL: redis://localhost:6379
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-only-not-a-real-secret-0123456789abcdef
+      CRON_SECRET: ci-only-cron
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      RESEND_API_KEY: re_ci_dummy
+      EMAIL_FROM: ci@example.test
+      INSTAGRAM_APP_ID: "0"
+      INSTAGRAM_APP_SECRET: ci
+      FACEBOOK_APP_SECRET: ci
+      WEBHOOK_VERIFY_TOKEN: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Prisma validate
+        run: npx prisma validate
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Migrations apply to an empty database
+        run: npx prisma migrate deploy && npx prisma migrate status
+      - name: Schema matches migrations (no drift)
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+      - name: Database integration tests
+        run: RUN_DB_TESTS=1 npx vitest run __tests__/db-integration.test.ts
+      - name: Upgrade path (legacy data, new migration, rollback)
+        run: bash scripts/ci/upgrade-path.sh
+      - name: Production build
+        run: npm run build
+      - name: Start app with API and MCP enabled (CI only)
+        run: |
+          API_V1_ENABLED=true MCP_ENABLED=true npx next start -p 3000 > server.log 2>&1 &
+          # An unauthenticated POST must be refused with 401. That proves the server is up, the MCP flag is on, and anonymous access is closed.
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/mcp -H 'Content-Type: application/json' -d '{}' || true)
+            [ "$code" = "401" ] && break
+            sleep 2
+          done
+          echo "anonymous MCP request -> HTTP $code"
+          test "$code" = "401"
+      - name: Seed interop tokens
+        run: |
+          node scripts/ci/seed-interop.mjs > seed.out
+          sed -n 's/^READ_TOKEN=//p' seed.out | { read v; echo "::add-mask::$v"; echo "READ_TOKEN=$v" >> "$GITHUB_ENV"; }
+          sed -n 's/^DRAFT_TOKEN=//p' seed.out | { read v; echo "::add-mask::$v"; echo "DRAFT_TOKEN=$v" >> "$GITHUB_ENV"; }
+          rm seed.out
+          echo "MCP_URL=http://localhost:3000/api/mcp" >> "$GITHUB_ENV"
+      - name: Client 1, raw JSON-RPC over HTTP (curl)
+        run: bash scripts/ci/mcp-curl.sh
+      - name: Client 2, official TypeScript MCP SDK
+        run: node scripts/ci/mcp-ts-client.mjs
+      - name: Client 3, official Python MCP SDK
+        run: |
+          python3 -m pip install --quiet "mcp==1.13.1" "pydantic==2.11.7"
+          python3 scripts/ci/mcp_py_client.py
+      - name: Client 4, MCP Inspector CLI
+        run: |
+          npx --yes @modelcontextprotocol/inspector@0.17.2 --cli "$MCP_URL" --transport http \
+            --header "Authorization: Bearer $READ_TOKEN" --method tools/list | grep -q list_campaigns
+      - name: Server log (should contain no secrets)
+        if: always()
+        run: tail -n 40 server.log || true

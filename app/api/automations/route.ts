@@ -538,7 +538,12 @@ export async function PATCH(request: NextRequest) {
 
   const updated = await prisma.automation.update({
     where: { id: automationId },
-    data: automationData,
+    // A person turning a campaign on is the review step for API drafts, so
+    // it stops being a draft at that moment.
+    data:
+      automationData.isActive === true
+        ? { ...automationData, isDraft: false }
+        : automationData,
   });
 
   // Update, create, or clear the campaign's primary tracked link when a
