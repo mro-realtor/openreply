@@ -24,6 +24,7 @@ model User {
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
   assignedContacts  Contact[]         @relation("ContactAssignee")
+  defaultAssigneeCampaigns Automation[] @relation("AutomationDefaultAssignee")
 }
 
 model Account {
@@ -212,6 +213,12 @@ model Automation {
   openingDmButtonLabel String?
   linkButtonLabel      String?
   requireFollow           Boolean @default(false)
+  /// When on, only a confirmed follow unlocks the link. Off keeps the original behaviour.
+  followGateStrict        Boolean @default(false)
+  /// Send plain text with the link inline instead of tappable buttons.
+  textOnly                Boolean @default(false)
+  /// New people from this campaign are assigned to this teammate (an existing assignee is never overridden).
+  defaultAssigneeUserId   String?
   followPromptMessage     String?
   followPromptButtonLabel String?
   followUpEnabled Boolean @default(false)
@@ -241,6 +248,7 @@ model Automation {
 
   workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  defaultAssignee  User?            @relation("AutomationDefaultAssignee", fields: [defaultAssigneeUserId], references: [id], onDelete: SetNull)
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]

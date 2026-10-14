@@ -6,6 +6,7 @@ import { calculateCtr, normalizeTopKeywords } from "@/lib/tracking/analytics";
 import { buildTrackedUrl } from "@/lib/tracking/message";
 import { generateTrackedLinkSlug } from "@/lib/tracking/server";
 import { buildReportUrl, generateReportShareSlug } from "@/lib/reports/share";
+import { missingForActivation, validateComposerSettings } from "@/lib/campaigns/settings";
 import {
   canManageWorkspace,
   getCurrentWorkspaceContext,
@@ -35,6 +36,14 @@ const createAutomationSchema = z
     requireFollow: z.boolean().optional().default(false),
     followPromptMessage: z.string().max(1000).optional().nullable(),
     followPromptButtonLabel: z.string().max(20).optional().nullable(),
+    // Only a confirmed follower gets the link (see lib/campaigns/settings.ts).
+    followGateStrict: z.boolean().optional().default(false),
+    // Plain text with the link inline, no tappable buttons.
+    textOnly: z.boolean().optional().default(false),
+    // New people from this campaign are assigned to this teammate.
+    defaultAssigneeUserId: z.string().min(1).optional().nullable(),
+    // Save the work without it going live. A draft may be incomplete.
+    isDraft: z.boolean().optional().default(false),
     followUpEnabled: z.boolean().optional().default(false),
     followUpMessage: z.string().max(1000).optional().nullable(),
     // Minutes to wait before the follow-up. Capped at 24h so it stays inside
@@ -63,11 +72,11 @@ const createAutomationSchema = z
   })
   // A campaign must target a specific post, any post, or the next reel.
   .refine(
-    (d) => d.matchAnyPost || d.pendingNextReel || Boolean(d.postId),
+    (d) => d.isDraft || d.matchAnyPost || d.pendingNextReel || Boolean(d.postId),
     { message: "Choose which post(s) trigger the campaign", path: ["postId"] }
   )
   // And it must match either specific words or any word.
-  .refine((d) => d.matchAnyWord || d.keywords.length >= 1, {
+  .refine((d) => d.isDraft || d.matchAnyWord || d.keywords.length >= 1, {
     message: "Add at least one keyword, or match any word",
     path: ["keywords"],
   })
@@ -98,6 +107,9 @@ const updateAutomationSchema = z.object({
   requireFollow: z.boolean().optional(),
   followPromptMessage: z.string().max(1000).optional().nullable(),
   followPromptButtonLabel: z.string().max(20).optional().nullable(),
+  followGateStrict: z.boolean().optional(),
+  textOnly: z.boolean().optional(),
+  defaultAssigneeUserId: z.string().min(1).optional().nullable(),
   followUpEnabled: z.boolean().optional(),
   followUpMessage: z.string().max(1000).optional().nullable(),
   followUpDelayMinutes: z.number().int().min(0).max(1440).optional(),
@@ -341,6 +353,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const settingsError = validateComposerSettings(parsed.data);
+  if (settingsError) {
+    return NextResponse.json({ success: false, error: settingsError }, { status: 400 });
+  }
+  if (parsed.data.defaultAssigneeUserId) {
+    const assignee = await prisma.workspaceMember.findFirst({
+      where: { workspaceId, userId: parsed.data.defaultAssigneeUserId },
+      select: { id: true },
+    });
+    if (!assignee) {
+      return NextResponse.json(
+        { success: false, error: "The default teammate must be a member of this workspace" },
+        { status: 400 }
+      );
+    }
+  }
+
   const { trackedDestinationUrl, secondaryDestinationUrl, secondaryButtonLabel } =
     parsed.data;
 
@@ -405,6 +434,9 @@ export async function POST(request: NextRequest) {
         : null,
       linkButtonLabel: parsed.data.linkButtonLabel || null,
       requireFollow: parsed.data.requireFollow,
+      followGateStrict: parsed.data.requireFollow ? parsed.data.followGateStrict : false,
+      textOnly: parsed.data.textOnly,
+      defaultAssigneeUserId: parsed.data.defaultAssigneeUserId ?? null,
       followPromptMessage: parsed.data.requireFollow
         ? parsed.data.followPromptMessage || null
         : null,
@@ -425,7 +457,9 @@ export async function POST(request: NextRequest) {
       publicReplyMessage: parsed.data.publicReplyEnabled
         ? publicReplyList[0] ?? parsed.data.publicReplyMessage ?? null
         : null,
-      isActive: parsed.data.isActive,
+      // A draft is never live, whatever isActive says.
+      isActive: parsed.data.isDraft ? false : parsed.data.isActive,
+      isDraft: parsed.data.isDraft,
       wholeWordMatch: parsed.data.wholeWordMatch,
       workspaceId,
       instagramAccountId: instagramAccount.id,
@@ -513,6 +547,7 @@ export async function PATCH(request: NextRequest) {
   if (automationData.requireFollow === false) {
     automationData.followPromptMessage = null;
     automationData.followPromptButtonLabel = null;
+    automationData.followGateStrict = false;
   }
   if (automationData.followUpEnabled === false) {
     automationData.followUpMessage = null;
@@ -534,6 +569,35 @@ export async function PATCH(request: NextRequest) {
   if (automationData.publicReplyEnabled === false) {
     automationData.publicReplyMessages = [];
     automationData.publicReplyMessage = null;
+  }
+
+  // The finished campaign must make sense as a whole, not just the fields sent.
+  const merged = { ...existing, ...automationData };
+  const settingsError = validateComposerSettings(merged);
+  if (settingsError) {
+    return NextResponse.json({ success: false, error: settingsError }, { status: 400 });
+  }
+  if (automationData.defaultAssigneeUserId) {
+    const assignee = await prisma.workspaceMember.findFirst({
+      where: { workspaceId, userId: automationData.defaultAssigneeUserId },
+      select: { id: true },
+    });
+    if (!assignee) {
+      return NextResponse.json(
+        { success: false, error: "The default teammate must be a member of this workspace" },
+        { status: 400 }
+      );
+    }
+  }
+  // Going live is the moment a saved draft has to be complete.
+  if (automationData.isActive === true) {
+    const missing = missingForActivation(merged);
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { success: false, error: `Not ready to go live. Still needed: ${missing.join(", ")}`, missing },
+        { status: 400 }
+      );
+    }
   }
 
   const updated = await prisma.automation.update({

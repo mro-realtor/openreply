@@ -30,7 +30,8 @@ apply_all
 test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\"::text, \"isDraft\"::text) FROM \"Automation\" WHERE id='au1'")" = "true,false"
 test "$(count_tables "$NEW_TABLES")" = "14"
 test "$(run -t -A -c "SELECT \"connectionStatus\"::text FROM \"InstagramAccount\" WHERE id='a1'")" = "ACTIVE"
-echo "upgrade ok: legacy campaign unchanged (active, not a draft), 14 new tables"
+test "$(run -t -A -c "SELECT concat_ws(',', \"followGateStrict\"::text, \"textOnly\"::text, coalesce(\"defaultAssigneeUserId\", 'none')) FROM \"Automation\" WHERE id='au1'")" = "false,false,none"
+echo "upgrade ok: legacy campaign unchanged (active, not a draft, new settings off), 14 new tables"
 
 for (( i=${#NEW[@]}-1; i>=0; i-- )); do run -f "${NEW[$i]}/rollback.sql"; done
 test "$(run -t -A -c "SELECT name FROM \"Automation\" WHERE id='au1'")" = "legacy"

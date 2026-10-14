@@ -161,3 +161,31 @@ export async function setHumanTakeover(db: Db, workspaceId: string, contactId: s
   }
   return res.count === 1;
 }
+
+/**
+ * Gives a new person to the campaign's default teammate. Never overrides an
+ * existing assignee, and ignores anyone who is not a member of the workspace.
+ */
+export async function applyDefaultAssignee(
+  db: Db,
+  input: { workspaceId: string; contactId: string; userId: string }
+): Promise<boolean> {
+  const member = await db.workspaceMember.findFirst({
+    where: { workspaceId: input.workspaceId, userId: input.userId },
+    select: { id: true },
+  });
+  if (!member) return false;
+  const res = await db.contact.updateMany({
+    where: { id: input.contactId, workspaceId: input.workspaceId, assignedToUserId: null },
+    data: { assignedToUserId: input.userId, assignedAt: new Date() },
+  });
+  if (res.count === 1) {
+    await emitOutbound(db, {
+      workspaceId: input.workspaceId,
+      type: "contact.assigned",
+      dedupeKey: `contact:${input.contactId}:assigned:${Date.now()}`,
+      data: { contactId: input.contactId, assignedToUserId: input.userId, previousAssignedToUserId: null, via: "campaign_default" },
+    });
+  }
+  return res.count === 1;
+}
