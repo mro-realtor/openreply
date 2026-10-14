@@ -138,6 +138,24 @@ model InstagramAccount {
   connectedAt       DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // Connection upkeep (see lib/instagram). Each account carries its own
+  // authorization state; nothing here is shared between accounts or owners.
+  connectionStatus     IgConnectionStatus @default(ACTIVE)
+  needsReconnectReason String?
+  /// OpenReply user who completed the Instagram login for this account.
+  connectedByUserId    String?
+  grantedScopes        String[]           @default([])
+  lastRefreshAt        DateTime?
+  nextRefreshAt        DateTime?
+  refreshAttempts      Int                @default(0)
+  lastRefreshError     String?
+  refreshLockedUntil   DateTime?
+  webhookCheckedAt     DateTime?
+  webhookError         String?
+  lastWebhookAt        DateTime?
+  lastAlertKind        String?
+  lastAlertAt          DateTime?
+
   workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automations Automation[]
   dmLogs      DmLog[]
@@ -145,6 +163,7 @@ model InstagramAccount {
   followerSnapshots FollowerSnapshot[]
 
   @@index([workspaceId])
+  @@index([connectionStatus])
 }
 
 /// Daily follower total for one account. Instagram only retains ~30 days of
@@ -585,4 +604,10 @@ model SocialIdentity {
 
   @@unique([workspaceId, platform, externalId])
   @@index([contactId])
+}
+
+enum IgConnectionStatus {
+  ACTIVE
+  DEGRADED
+  NEEDS_RECONNECT
 }

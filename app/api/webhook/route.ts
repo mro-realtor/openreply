@@ -10,6 +10,7 @@ import {
 } from "@/lib/meta/webhook";
 import { MESSAGE_JOB_NAME, POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
+import { extractEntryIds } from "@/lib/instagram/health";
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -65,6 +66,17 @@ export async function POST(request: NextRequest) {
       { success: false, error: "Invalid JSON" },
       { status: 400 }
     );
+  }
+
+  // Record that Meta is really delivering to this account (best effort).
+  const deliveredFor = extractEntryIds(payload);
+  if (deliveredFor.length > 0) {
+    await prisma.instagramAccount
+      .updateMany({
+        where: { instagramId: { in: deliveredFor } },
+        data: { lastWebhookAt: new Date() },
+      })
+      .catch(() => {});
   }
 
   const webhookEvent = await prisma.webhookEvent.create({

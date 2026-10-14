@@ -10,6 +10,7 @@ import {
   verifyOAuthState,
 } from "@/lib/meta/oauth";
 import { canManageWorkspace } from "@/lib/workspace-access";
+import { plannedRefreshAt } from "@/lib/instagram/health";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -30,6 +31,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${baseUrl}/login`);
   }
 
+  // A reconnect link is only valid for the person who started it.
+  if (state.userId && state.userId !== session.user.id) {
+    return NextResponse.redirect(`${baseUrl}/settings?instagram=invalid`);
+  }
+
   const membership = await prisma.workspaceMember.findFirst({
     where: {
       workspaceId: state.workspaceId,
@@ -43,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const redirectUri = `${baseUrl}/api/instagram/callback`;
-    const { accessToken: shortLivedToken } = await exchangeCodeForToken(
+    const { accessToken: shortLivedToken, permissions } = await exchangeCodeForToken(
       code,
       redirectUri
     );
@@ -66,6 +72,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Reconnecting a specific account: the person must log into THAT account.
+    // Anything else is refused so one owner's login can never overwrite
+    // another owner's account.
+    if (state.reconnectAccountId) {
+      const target = await prisma.instagramAccount.findFirst({
+        where: { id: state.reconnectAccountId, workspaceId: state.workspaceId },
+        select: { instagramId: true, username: true },
+      });
+      if (!target || target.instagramId !== instagramId) {
+        return NextResponse.redirect(
+          `${baseUrl}/settings?instagram=wrong_account&expected=${encodeURIComponent(
+            target?.username ?? ""
+          )}`
+        );
+      }
+    }
+
     const encryptedToken = encryptToken(longLivedToken);
     const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
 
@@ -83,6 +106,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+
+    const health = {
+      connectionStatus: "ACTIVE" as const,
+      needsReconnectReason: null,
+      connectedByUserId: session.user.id,
+      grantedScopes: permissions,
+      lastRefreshAt: new Date(),
+      nextRefreshAt: plannedRefreshAt(tokenExpiresAt),
+      refreshAttempts: 0,
+      lastRefreshError: null,
+      refreshLockedUntil: null,
+      lastAlertKind: null,
+      lastAlertAt: null,
+    };
+
     await prisma.instagramAccount.upsert({
       where: { instagramId },
       create: {
@@ -93,6 +131,7 @@ export async function GET(request: NextRequest) {
         accessToken: encryptedToken,
         tokenExpiresAt,
         webhookSubscribed,
+        ...health,
       },
       update: {
         workspaceId: state.workspaceId,
@@ -101,6 +140,7 @@ export async function GET(request: NextRequest) {
         accessToken: encryptedToken,
         tokenExpiresAt,
         webhookSubscribed,
+        ...health,
       },
     });
 

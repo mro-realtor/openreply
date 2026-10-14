@@ -758,6 +758,21 @@ export async function subscribeInstagramAccountToWebhooks(
   return handleResponse(response);
 }
 
+/** The webhook fields this app is currently subscribed to for one Instagram account. */
+export async function getInstagramSubscribedFields(
+  instagramAccountId: string,
+  accessToken: string
+): Promise<string[]> {
+  const response = await fetch(
+    `${instagramGraphBase()}/${instagramAccountId}/subscribed_apps`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const data = await handleResponse<{
+    data?: Array<{ subscribed_fields?: string[] }>;
+  }>(response);
+  return [...new Set((data.data ?? []).flatMap((d) => d.subscribed_fields ?? []))];
+}
+
 export async function debugToken(inputToken: string, accessToken: string) {
   const url = new URL(`${facebookGraphBase()}/debug_token`);
   url.searchParams.set("input_token", inputToken);

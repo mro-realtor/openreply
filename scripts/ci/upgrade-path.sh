@@ -29,11 +29,14 @@ NEW_TABLES="'ApiToken','AuditLog','IdempotencyKey','OAuthClient','OAuthAuthoriza
 apply_all
 test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\"::text, \"isDraft\"::text) FROM \"Automation\" WHERE id='au1'")" = "true,false"
 test "$(count_tables "$NEW_TABLES")" = "10"
+test "$(run -t -A -c "SELECT \"connectionStatus\"::text FROM \"InstagramAccount\" WHERE id='a1'")" = "ACTIVE"
 echo "upgrade ok: legacy campaign unchanged (active, not a draft), 10 new tables"
 
 for (( i=${#NEW[@]}-1; i>=0; i-- )); do run -f "${NEW[$i]}/rollback.sql"; done
 test "$(run -t -A -c "SELECT name FROM \"Automation\" WHERE id='au1'")" = "legacy"
 test "$(count_tables "$NEW_TABLES")" = "0"
+test "$(run -t -A -c "SELECT count(*) FROM information_schema.columns WHERE table_name='InstagramAccount' AND column_name='connectionStatus'")" = "0"
+test "$(run -t -A -c "SELECT username FROM \"InstagramAccount\" WHERE id='a1'")" = "x"
 echo "rollback ok: legacy data intact, new tables gone"
 
 apply_all

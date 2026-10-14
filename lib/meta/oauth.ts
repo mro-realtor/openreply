@@ -14,9 +14,13 @@ const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 const STATE_MAX_AGE_MS = 10 * 60 * 1000;
 
-interface OAuthStatePayload {
+export interface OAuthStatePayload {
   workspaceId: string;
   ts: number;
+  /** OpenReply user who started the flow. The callback must be completed by the same user. */
+  userId?: string;
+  /** Set when re-authorizing one specific account; the login must match it. */
+  reconnectAccountId?: string;
 }
 
 function base64UrlEncode(value: string): string {
@@ -33,9 +37,12 @@ function signState(payload: string): string {
     .digest("base64url");
 }
 
-export function createOAuthState(workspaceId: string): string {
+export function createOAuthState(
+  workspaceId: string,
+  extra: { userId?: string; reconnectAccountId?: string } = {}
+): string {
   const payload = base64UrlEncode(
-    JSON.stringify({ workspaceId, ts: Date.now() } satisfies OAuthStatePayload)
+    JSON.stringify({ workspaceId, ts: Date.now(), ...extra } satisfies OAuthStatePayload)
   );
   return `${payload}.${signState(payload)}`;
 }
@@ -69,7 +76,11 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
   }
 }
 
-export function getAuthorizationUrl(redirectUri: string, state: string): string {
+export function getAuthorizationUrl(
+  redirectUri: string,
+  state: string,
+  options: { forceReauth?: boolean } = {}
+): string {
   const params = new URLSearchParams({
     client_id: requireEnv("INSTAGRAM_APP_ID"),
     redirect_uri: redirectUri,
@@ -77,6 +88,9 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
       "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
     response_type: "code",
     state,
+    // On a reconnect, make Instagram show its login screen instead of silently
+    // reusing whichever account this browser is already signed into.
+    ...(options.forceReauth ? { force_reauth: "true" } : {}),
   });
 
   return `${INSTAGRAM_OAUTH_URL}?${params.toString()}`;
@@ -85,7 +99,7 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
 export async function exchangeCodeForToken(
   code: string,
   redirectUri: string
-): Promise<{ accessToken: string; userId: string }> {
+): Promise<{ accessToken: string; userId: string; permissions: string[] }> {
   const body = new URLSearchParams({
     client_id: requireEnv("INSTAGRAM_APP_ID"),
     client_secret: requireEnv("INSTAGRAM_APP_SECRET"),
@@ -111,7 +125,14 @@ export async function exchangeCodeForToken(
   return {
     accessToken: data.access_token,
     userId: String(data.user_id),
+    permissions: parsePermissions(data.permissions),
   };
+}
+
+/** Instagram returns granted permissions as an array or a comma separated string. */
+export function parsePermissions(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
+  return list.map((p) => String(p).trim()).filter(Boolean);
 }
 
 function getEncryptionKey(): Buffer {
