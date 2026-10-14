@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/client";
 import { decryptToken, encryptToken } from "@/lib/meta/oauth";
 import { maintainInstagramAccounts } from "@/lib/instagram/maintenance";
 import { liveMetaOps } from "@/lib/instagram/meta-ops";
+import { startInstagramMaintenance } from "@/lib/instagram/scheduler";
 
 const worker = createDMWorker();
 const startedAt = new Date().toISOString();
@@ -16,13 +17,9 @@ const POLL_INTERVAL_MS = Number(
   process.env.COMMENT_POLL_INTERVAL_MS ?? 5 * 60_000
 );
 
-// Instagram connection upkeep (token renewal, webhook recovery). Runs here
-// because self-hosted deployments have no Vercel cron. The cron route does the
-// same work and the two are safe together: each account is locked while handled.
-const IG_MAINTENANCE_ENABLED = process.env.IG_MAINTENANCE_ENABLED !== "false";
-const IG_MAINTENANCE_INTERVAL_MS = Number(
-  process.env.IG_MAINTENANCE_INTERVAL_MS ?? 6 * 3_600_000
-);
+// Instagram connection upkeep (token renewal, webhook recovery) contacts Meta, so
+// it is opt-in: it only runs when IG_MAINTENANCE_ENABLED is exactly "true".
+// See lib/instagram/scheduler.ts.
 
 console.log("[DM Worker] Started");
 
@@ -68,12 +65,9 @@ async function maintainInstagram() {
   }
 }
 
-if (IG_MAINTENANCE_ENABLED) {
-  setTimeout(() => void maintainInstagram(), 60_000);
-}
-const maintenanceTimer = IG_MAINTENANCE_ENABLED
-  ? setInterval(() => void maintainInstagram(), IG_MAINTENANCE_INTERVAL_MS)
-  : null;
+const maintenance = startInstagramMaintenance(maintainInstagram, {
+  log: (message) => console.log(`[DM Worker] ${message}`),
+});
 
 // Kick off one sweep shortly after boot, then on a fixed interval.
 setTimeout(() => void poll(), 10_000);
@@ -83,7 +77,7 @@ async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
   clearInterval(heartbeatTimer);
   clearInterval(pollTimer);
-  if (maintenanceTimer) clearInterval(maintenanceTimer);
+  maintenance?.stop();
   await worker.close();
   process.exit(0);
 }
