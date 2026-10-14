@@ -21,7 +21,7 @@ INSERT INTO \"InstagramAccount\"(id,\"workspaceId\",\"instagramId\",username,\"a
 INSERT INTO \"Automation\"(id,\"workspaceId\",\"instagramAccountId\",name,\"dmMessage\",\"updatedAt\") VALUES('au1','w1','a1','legacy','hi',now());"
 
 run -f "$NEW/migration.sql"
-test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\", \"isDraft\") FROM \"Automation\" WHERE id='au1'")" = "true,false"
+test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\"::text, \"isDraft\"::text) FROM \"Automation\" WHERE id='au1'")" = "true,false"
 echo "upgrade ok: legacy campaign unchanged (active, not a draft)"
 
 run -f "$NEW/rollback.sql"
