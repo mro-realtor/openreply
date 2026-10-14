@@ -13,6 +13,7 @@ function campaignRow(overrides: Record<string, unknown> = {}) {
     matchAnyWord: false, wholeWordMatch: true, dmTriggerEnabled: false, dmMessage: "Hola!",
     openingDmEnabled: false, openingDmMessage: null, openingDmButtonLabel: null, linkButtonLabel: null,
     requireFollow: false, followPromptMessage: null, followPromptButtonLabel: null,
+    followGateStrict: false, textOnly: false, defaultAssigneeUserId: null,
     followUpEnabled: false, followUpMessage: null, followUpDelayMinutes: 0,
     publicReplyEnabled: false, publicReplyMessages: [], draftConfig: null,
     createdAt: NOW, updatedAt: NOW,

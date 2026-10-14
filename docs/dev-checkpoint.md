@@ -1,6 +1,6 @@
 # OpenReply development checkpoint
 
-Last updated: 2026-10-14 (after PR #7). Written so work can resume cold.
+Last updated: 2026-10-14 (after PR #8). Written so work can resume cold.
 
 ## Branch and PR stack (all draft, nothing merged, nothing deployed)
 
@@ -13,8 +13,9 @@ Last updated: 2026-10-14 (after PR #7). Written so work can resume cold.
 | 5 | #5 | feature/outbound-webhooks | feature/ig-connection-maintenance | green (run 38540828642, head 2bcafc1) |
 | 6 | #6 | feature/contact-consent-assignment | feature/outbound-webhooks | green (run 38541799077, head 388d415) |
 | 7 | #7 | feature/campaign-settings | feature/contact-consent-assignment | green (run 38543508899, head b25ac5a) |
+| 8 | #8 | feature/campaign-dashboard-api | feature/campaign-settings | green (run 38587899458, head f0ac245) |
 
-Next branch: stack on feature/campaign-settings. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
+Next branch: stack on feature/campaign-dashboard-api. Every new branch stacks on the previous one to avoid conflicts in prisma/schema.prisma, scripts/ci/upgrade-path.sh and the CI workflow.
 
 ## Delivery mechanics
 
@@ -34,6 +35,8 @@ Next branch: stack on feature/campaign-settings. Every new branch stacks on the 
 - Contact consent and lead assignment (PR #6): consent history with source, assignment between teammates, listing and filtering, events. CI ran 7 database tests plus upgrade, rollback and re-apply with 14 new tables.
 - Campaign composer settings (PR #7): strict follow gate, text-only DMs, default teammate (for Nancy), draft-safe creation and activation check (name, message, keyword). All off by default. Worker logic covered by 47 local unit tests and CI. A first CI run failed because the activation check also required a trigger post, which broke an existing test; fixed by dropping that requirement. Backend only: no dashboard controls yet.
 
+- Dashboard controls and draft-only REST/MCP (PR #8): builder toggles, Save draft, teammate picker; API and MCP drafts accept the three settings and still cannot activate. Database tests ran through REST services, a real MCP client and the dashboard routes. The UI was only typechecked and linted, never opened in a browser.
+
 ## Not verified
 
 - Any live Meta call (refresh, subscribed_apps, force_reauth), the worker timer with real Redis, ChatGPT, Claude connector, Hermes, OpenClaw, Gemini, Muse clients, email delivery of alerts.
@@ -46,8 +49,8 @@ Next branch: stack on feature/campaign-settings. Every new branch stacks on the 
 ## Exact next steps, in order
 
 1. DONE: feature/outbound-webhooks (PR #5). Possible later additions: a settings page card for endpoints, a cron route fallback, an example CRM receiver contract once mro-crm is chosen.
-2. AI router branch (from scratch, see blockers).
-3. Campaign composer UI branch: Save Draft button, strict follow and text-only toggles, default teammate picker, minimal Contacts page, workspace members endpoint. Backend for all of it is done (PRs #6 and #7). Also expose contacts and new campaign settings through v1 API and MCP (review leads:read scope, update api-core snapshot tests).
+2. AI router: ON HOLD. Marvin is having Codex audit the existing 1Prompt/Kairo system (Supabase prompts, knowledge base, orchestration). Do not start the router or any independent AI backend until he provides the completed Codex mapping. Keep OpenReply modular and API-first for the future backend.
+3. DONE (PR #8): builder controls and draft-only REST/MCP settings. Still open: minimal Contacts page in the dashboard, and contacts through v1 API and MCP (review leads:read scope, update api-core snapshot tests). A browser check of the builder (tabs, toggles, Save draft) still needs a human or a staging run.
 4. Agent interoperability: Hermes first, then OpenClaw, Gemini; Agent Connections page (1c); interop testing (1d); Muse only through a supported path and treated as future until verified.
 5. After each milestone: update this file, confirm CI green, send a concise report.
 

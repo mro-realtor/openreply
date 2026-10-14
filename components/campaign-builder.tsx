@@ -43,6 +43,9 @@ interface LoadedCampaign {
   openingDmButtonLabel: string | null;
   linkButtonLabel: string | null;
   requireFollow: boolean;
+  followGateStrict?: boolean;
+  textOnly?: boolean;
+  defaultAssigneeUserId?: string | null;
   followPromptMessage: string | null;
   followPromptButtonLabel: string | null;
   followUpEnabled: boolean;
@@ -174,6 +177,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [secondaryDestinationUrl, setSecondaryDestinationUrl] = useState("");
   const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("Open link");
   const [requireFollow, setRequireFollow] = useState(false);
+  const [followGateStrict, setFollowGateStrict] = useState(false);
+  const [textOnly, setTextOnly] = useState(false);
+  const [defaultAssigneeUserId, setDefaultAssigneeUserId] = useState("");
+  const [members, setMembers] = useState<{ userId: string; label: string }[]>([]);
   const [followPromptMessage, setFollowPromptMessage] = useState("");
   const [followPromptButtonLabel, setFollowPromptButtonLabel] =
     useState("i'm following");
@@ -281,6 +288,9 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         setSecondaryButtonLabel(secondLink?.label ?? "Open link");
         setSecondLinkOpen(Boolean(secondLink?.destinationUrl));
         setRequireFollow(c.requireFollow ?? false);
+        setFollowGateStrict(c.followGateStrict ?? false);
+        setTextOnly(c.textOnly ?? false);
+        setDefaultAssigneeUserId(c.defaultAssigneeUserId ?? "");
         setFollowPromptMessage(c.followPromptMessage ?? "");
         setFollowPromptButtonLabel(
           c.followPromptButtonLabel ?? "i'm following"
@@ -292,6 +302,27 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [mode, campaignId]);
+
+  // Teammates who can be the default person for new leads from this campaign.
+  useEffect(() => {
+    fetch("/api/workspace/members", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json) => {
+        if (!json.success) return;
+        const list = (json.data.members ?? []) as {
+          user: { id: string; name: string | null; email: string | null };
+        }[];
+        setMembers(
+          list.map((m) => ({
+            userId: m.user.id,
+            label: m.user.name || m.user.email || "Teammate",
+          }))
+        );
+      })
+      .catch(() => {
+        // The picker simply stays empty.
+      });
+  }, []);
 
   // Track which posts on the selected account are already assigned to an
   // automation, so the picker can highlight them. The campaign being edited is
@@ -383,17 +414,22 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
     setDmMessage((cur) => (cur.includes("{link}") ? cur : `${cur.trim()} {link}`.trim()));
   }
 
-  async function handleSubmit(activeValue: boolean) {
+  async function handleSubmit(activeValue: boolean, asDraft = false) {
     setError(null);
 
     if (!selectedAccountId) return setError("Connect an Instagram account first.");
-    if (triggerScope === "specific" && !postId)
-      return setError("Pick a post or reel to trigger the campaign.");
-    if (matchMode === "specific" && keywords.length === 0)
-      return setError("Add at least one keyword, or switch to any word.");
-    if (!dmMessage.trim()) return setError("Add the DM with the link.");
-    if (openingDmEnabled && (!openingDmMessage.trim() || !openingDmButtonLabel.trim()))
-      return setError("Your opening DM needs a message and a button label.");
+    // A draft may be unfinished, but it still needs a message to save.
+    if (asDraft && !dmMessage.trim())
+      return setError("Write the message first, even a rough one.");
+    if (!asDraft) {
+      if (triggerScope === "specific" && !postId)
+        return setError("Pick a post or reel to trigger the campaign.");
+      if (matchMode === "specific" && keywords.length === 0)
+        return setError("Add at least one keyword, or switch to any word.");
+      if (!dmMessage.trim()) return setError("Add the DM with the link.");
+      if (openingDmEnabled && (!openingDmMessage.trim() || !openingDmButtonLabel.trim()))
+        return setError("Your opening DM needs a message and a button label.");
+    }
 
     setSaving(true);
 
@@ -427,7 +463,12 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       followUpEnabled,
       followUpMessage: followUpEnabled ? followUpMessage.trim() : "",
       followUpDelayMinutes: followUpEnabled ? followUpDelayMinutes : 0,
-      isActive: activeValue,
+      followGateStrict: requireFollow && followGateStrict,
+      textOnly,
+      defaultAssigneeUserId: defaultAssigneeUserId || null,
+      // A draft is saved but never goes live.
+      isActive: asDraft ? false : activeValue,
+      ...(mode === "new" ? { isDraft: asDraft } : {}),
     };
 
     try {
@@ -615,6 +656,16 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 Go Live
               </button>
             ))}
+          {mode === "new" && (
+            <button
+              type="button"
+              onClick={() => handleSubmit(false, true)}
+              disabled={saving}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+            >
+              Save draft
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleSubmit(mode === "new" ? true : isActive)}
@@ -802,7 +853,10 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               <span className="text-sm text-foreground">an opening DM</span>
               <Toggle
                 on={openingDmEnabled}
-                onToggle={() => setOpeningDmEnabled(!openingDmEnabled)}
+                onToggle={() => {
+                  if (!openingDmEnabled) setTextOnly(false);
+                  setOpeningDmEnabled(!openingDmEnabled);
+                }}
               />
             </div>
             {openingDmEnabled && (
@@ -832,7 +886,11 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               </span>
               <Toggle
                 on={requireFollow}
-                onToggle={() => setRequireFollow(!requireFollow)}
+                onToggle={() => {
+                  if (!requireFollow) setTextOnly(false);
+                  if (requireFollow) setFollowGateStrict(false);
+                  setRequireFollow(!requireFollow);
+                }}
               />
             </div>
             {requireFollow && (
@@ -852,13 +910,71 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
                   maxLength={20}
                 />
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-sm text-foreground">
+                    strict check
+                  </span>
+                  <Toggle
+                    on={followGateStrict}
+                    onToggle={() => setFollowGateStrict(!followGateStrict)}
+                  />
+                </div>
                 <p className="text-xs text-muted">
-                  We send the link only after they tap the button and Instagram
-                  confirms the follow. If it can&apos;t be verified, we send it
-                  anyway.
+                  {followGateStrict
+                    ? "Strict: we send the link only when Instagram confirms they follow. If it can't be verified, we ask them again."
+                    : "We send the link after they tap the button and Instagram confirms the follow. If it can't be verified, we send it anyway so a real follower is never stuck."}
                 </p>
               </div>
             )}
+          </div>
+        </Section>
+
+        <Section title="Message style">
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-foreground">
+                text only, no buttons
+              </span>
+              <Toggle
+                on={textOnly}
+                onToggle={() => {
+                  if (!textOnly) {
+                    setRequireFollow(false);
+                    setFollowGateStrict(false);
+                    setOpeningDmEnabled(false);
+                  }
+                  setTextOnly(!textOnly);
+                }}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              {textOnly
+                ? "The link is written into the message as plain text. The follow requirement and the opening DM are turned off, because both need a button to tap."
+                : "Turn on to send plain text with the link inside the message."}
+            </p>
+          </div>
+        </Section>
+
+        <Section title="Who follows up">
+          <div className="rounded-lg border border-border p-3 space-y-2">
+            <span className="text-sm text-foreground">
+              new leads from this campaign go to
+            </span>
+            <select
+              value={defaultAssigneeUserId}
+              onChange={(e) => setDefaultAssigneeUserId(e.target.value)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent/40 focus:outline-none"
+            >
+              <option value="">No one yet</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted">
+              Someone already assigned to a person is never changed.
+            </p>
           </div>
         </Section>
 
