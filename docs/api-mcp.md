@@ -12,6 +12,7 @@ Set these on the **web** service only (not the worker), then redeploy:
 | `API_V1_ENABLED` | `true` | enables `/api/v1/*` |
 | `MCP_ENABLED` | `true` | enables `/api/mcp` |
 | `API_RATE_LIMIT_PER_MINUTE` | optional, default `120` | per token |
+| `OAUTH_ENABLED` | `true` | enables OAuth 2.1 sign-in for remote clients such as ChatGPT (also needs `MCP_ENABLED`) |
 
 With both unset, every new endpoint returns 404 and the app behaves exactly as before.
 
@@ -25,6 +26,8 @@ One additive migration, `20261014000000_add_api_access`:
 Existing rows are untouched (every existing campaign gets `isDraft = false`).
 The web container already runs `prisma migrate deploy` on start.
 Rollback SQL: `prisma/migrations/20261014000000_add_api_access/rollback.sql`.
+
+OAuth adds a second additive migration, `20261014120000_add_oauth` (five `OAuth*` tables and `ApiToken.grantId`), with its own `rollback.sql`.
 
 ## Authentication and authorization
 
@@ -133,10 +136,11 @@ Verified status is only what CI has actually run. Last verified: 2026-10-14, Git
 | Python MCP SDK 1.13.1 (HTTP) | scoped token | Verified in CI (same checks) |
 | MCP Inspector CLI 0.17.2 | scoped token | Verified in CI (tools/list only) |
 | Raw JSON-RPC (curl) | scoped token | Verified in CI (401 without or with a bad token, 405 on GET, initialize, tools/list, read-only token sees no write tool) |
+| TypeScript MCP SDK, full OAuth 2.1 flow | OAuth (discovery, dynamic registration, PKCE, consent, refresh, revoke) | Verified in CI, run 38517661570, 2026-10-14, on branch `feature/oauth-mcp` |
 | Hermes Agent, OpenClaw, Gemini clients | scoped token or OAuth | documented by vendor, not yet run (see `agents.md`) |
 | Meta Muse | none available | not supported directly (see `agents.md`) |
 | Claude custom connector | scoped token header | not tested by us |
-| ChatGPT | needs OAuth (milestone 1b) | not supported yet |
+| ChatGPT | OAuth 2.1 (milestone 1b) | OAuth server built to OpenAI's documented requirements. NOT yet tested against ChatGPT |
 
 ## Connecting clients
 
@@ -158,24 +162,33 @@ custom domain currently has no working certificate (see project notes). The
 If your account's dialog has no Request headers field, use Claude Desktop with `mcp-remote`
 (the same way the EasyPanel MCP is connected) and pass the header with `--header`.
 
-### ChatGPT (not supported by this milestone)
+### OAuth 2.1 for remote clients such as ChatGPT (milestone 1b, flag off)
 
-OpenAI documents only OAuth 2.1 for authenticated MCP servers. It states ChatGPT cannot send
-a custom API key, and static bearer tokens are not documented. An unauthenticated mode exists
-but is for read-only anonymous data, which this server must never be.
+OpenAI documents only OAuth 2.1 for authenticated MCP servers (no static API keys). OpenReply now includes an
+authorization server for that. It is off until `OAUTH_ENABLED=true`, and bearer tokens keep working exactly as before.
 
-To support ChatGPT, OpenReply needs an OAuth 2.1 authorization server:
+What is implemented:
 
-- authorization code flow with PKCE `S256`
-- client registration by Client ID Metadata Documents (preferred) or dynamic registration
-- `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`
-- `resource` parameter honored, tokens bound to the MCP URL as audience
-- RFC 9207 `iss` on authorization responses
-- allowlist ChatGPT's redirect URI `https://chatgpt.com/connector_platform_oauth_redirect`
-- a consent screen tied to the existing owner login, issuing the same scoped tokens
+- authorization code flow with PKCE `S256` only (no implicit flow, no `plain`)
+- dynamic client registration (RFC 7591), public clients only (`token_endpoint_auth_method: none`)
+- `/.well-known/oauth-protected-resource` (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414)
+- `WWW-Authenticate: Bearer resource_metadata=...` on every 401 from `/api/mcp` when OAuth is on
+- `resource` parameter (RFC 8707): tokens are only issued for this server's MCP endpoint
+- `iss` on authorization responses (RFC 9207)
+- refresh token rotation with reuse detection: a spent refresh token or authorization code shown a second time revokes the whole grant
+- token revocation (RFC 7009)
+- consent screen: only the workspace owner can approve, the owner can untick permissions, and a bad redirect URI is never redirected to
+- Settings > Connected apps, to disconnect an app at once
 
-This is a separate step (milestone 1b). It would also let Claude's connector use sign-in
-instead of a pasted header.
+How it stays safe: OAuth issues the same `orp_` tokens as the manual ones, so every request still goes through the same
+authenticator, scopes, workspace isolation, rate limit, audit log and draft-only rules. Only `read` and `drafts:write` can be granted
+(reserved scopes are refused, never dropped). Access tokens last 1 hour; refresh tokens 30 days, and a grant ends after 90 days.
+
+Not implemented yet: Client ID Metadata Documents (clients must use dynamic registration). Not yet tested: ChatGPT itself,
+the Claude connector with OAuth, Hermes and OpenClaw OAuth login. The official TypeScript SDK's OAuth client is the verified reference.
+
+To try ChatGPT later (unverified, from OpenAI's documentation): set `OAUTH_ENABLED=true`, `MCP_ENABLED=true`, make sure
+`NEXTAUTH_URL` is the public https address, then add `https://<your-domain>/api/mcp` as a connector and choose OAuth.
 
 ## Testing done
 
@@ -186,5 +199,5 @@ no schema drift against `schema.prisma`, 12 database integration tests, an upgra
 (legacy data kept through the new migration, the rollback script, and re-apply), a production build,
 and the four client checks above against a server started with the flags on.
 
-Not covered: a real production database, Hermes Agent or OpenClaw instances, the Claude connector UI, ChatGPT
-(needs OAuth), and the dashboard in a browser.
+Not covered: a real production database, Hermes Agent or OpenClaw instances, the Claude connector UI, ChatGPT itself,
+and the dashboard and consent screen in a real browser (CI drives them over HTTP with a seeded session).

@@ -18,10 +18,11 @@ No client-specific code exists. See [architecture-principles.md](architecture-pr
 | Python MCP SDK | Streamable HTTP + scoped token | Verified 2026-10-14 in CI |
 | MCP Inspector CLI | Streamable HTTP + scoped token | Verified 2026-10-14 in CI (tools/list) |
 | Raw JSON-RPC (curl) | Streamable HTTP + scoped token | Verified 2026-10-14 in CI |
+| TypeScript MCP SDK, full OAuth flow | OAuth 2.1 (dynamic registration, PKCE) | Verified 2026-10-14 in CI (branch `feature/oauth-mcp`) |
 | Claude custom connector | request header with scoped token | Documented |
 | Hermes Agent (Nous Research) | `mcp_servers` url + `headers: Authorization: Bearer`, or `auth: oauth` | Documented. Early real-agent test target |
 | OpenClaw | `mcp.servers` with `transport: streamable-http`, OAuth via `openclaw mcp login`; static header syntax unconfirmed | Documented (partly) |
-| ChatGPT | OAuth 2.1 only (no static keys) | Planned: milestone 1b |
+| ChatGPT | OAuth 2.1 only (no static keys) | OAuth server implemented (milestone 1b, flag off). Not yet tested against ChatGPT |
 | Google Gemini and other MCP clients | same two interfaces | Planned, untested |
 | Meta Muse | see below | Not supported directly today |
 

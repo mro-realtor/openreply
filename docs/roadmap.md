@@ -9,6 +9,7 @@ a rollback note and an approval gate before production.
    1c. **Agent Connections page**: per-agent credentials, scopes, last activity, expiry, revoke (see `agents.md`).
    1d. **Agent interoperability testing**: Hermes Agent first, then OpenClaw, Gemini clients, others; Muse only via a supported path.
    1b. **OAuth 2.1 for remote clients** (standards-based, usable by any compliant MCP client; ChatGPT requires it).
+       Built on `feature/oauth-mcp`, flag off, CI-verified with the official SDK OAuth client; ChatGPT live test pending.
        Issues the same scoped, workspace-bound tokens. Interoperability matrix kept current in `docs/api-mcp.md`.
 2. **Contact identity and leads** (next priority after secure MCP access): Contact, SocialIdentity, Lead, Consent, Conversation.
    Per-person and cross-campaign cooldown, opt-out and human-takeover suppression.
