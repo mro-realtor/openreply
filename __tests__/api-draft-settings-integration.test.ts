@@ -86,6 +86,12 @@ async function makeTenant(): Promise<Tenant> {
   };
 }
 
+interface ToolBody {
+  id: string;
+  status?: string;
+  settings?: unknown;
+}
+
 async function mcp(ctx: ApiContext) {
   const server = createMcpServer(prisma, ctx);
   const client = new Client({ name: "settings-test", version: "1" });
@@ -93,7 +99,7 @@ async function mcp(ctx: ApiContext) {
   await Promise.all([server.connect(x), client.connect(y)]);
   return async (name: string, args: Record<string, unknown>) => {
     const res = (await client.callTool({ name, arguments: args })) as { isError?: boolean; content: { text: string }[] };
-    return { isError: Boolean(res.isError), body: JSON.parse(res.content[0].text) as Record<string, any> };
+    return { isError: Boolean(res.isError), body: JSON.parse(res.content[0].text) as ToolBody };
   };
 }
 
