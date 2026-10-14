@@ -87,6 +87,7 @@ model Workspace {
   apiTokens         ApiToken[]
 
   @@index([ownerId])
+  contacts          Contact[]
 }
 
 model WorkspaceMember {
@@ -237,6 +238,7 @@ model DmLog {
   commenterName String?
   commentText   String
   commentId     String
+  contactId     String?
   matchedKeyword String?
   status        DmStatus @default(PENDING)
   attempts      Int      @default(0)
@@ -255,8 +257,10 @@ model DmLog {
   workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   automation       Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
   instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact          Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
 
   @@unique([automationId, commentId])
+  @@index([contactId])
   @@index([workspaceId])
   @@index([automationId])
   @@index([instagramAccountId])
@@ -535,4 +539,50 @@ enum OperationalEventLevel {
   INFO
   WARNING
   ERROR
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+}
+
+enum ContactStatus {
+  ACTIVE
+  OPTED_OUT
+}
+
+// One real person in a workspace, however many platform identities they have.
+// Dedup, opt-out and human-takeover are decided per Contact, not per comment.
+model Contact {
+  id              String        @id @default(cuid())
+  workspaceId     String
+  displayName     String?
+  status          ContactStatus @default(ACTIVE)
+  optedOutAt      DateTime?
+  humanTakeoverAt DateTime?
+  lastDmSentAt    DateTime?
+  firstSeenAt     DateTime      @default(now())
+  lastSeenAt      DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  identities SocialIdentity[]
+  dmLogs     DmLog[]
+
+  @@index([workspaceId])
+}
+
+model SocialIdentity {
+  id          String         @id @default(cuid())
+  workspaceId String
+  contactId   String
+  platform    SocialPlatform
+  externalId  String
+  handle      String?
+  createdAt   DateTime       @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([contactId])
 }

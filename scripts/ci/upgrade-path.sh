@@ -24,12 +24,12 @@ INSERT INTO \"Automation\"(id,\"workspaceId\",\"instagramAccountId\",name,\"dmMe
 
 apply_all() { for dir in "${NEW[@]}"; do run -f "$dir/migration.sql"; done; }
 count_tables() { run -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ($1)"; }
-NEW_TABLES="'ApiToken','AuditLog','IdempotencyKey','OAuthClient','OAuthAuthorizationRequest','OAuthGrant','OAuthAuthorizationCode','OAuthRefreshToken'"
+NEW_TABLES="'ApiToken','AuditLog','IdempotencyKey','OAuthClient','OAuthAuthorizationRequest','OAuthGrant','OAuthAuthorizationCode','OAuthRefreshToken','Contact','SocialIdentity'"
 
 apply_all
 test "$(run -t -A -c "SELECT concat_ws(',', \"isActive\"::text, \"isDraft\"::text) FROM \"Automation\" WHERE id='au1'")" = "true,false"
-test "$(count_tables "$NEW_TABLES")" = "8"
-echo "upgrade ok: legacy campaign unchanged (active, not a draft), 8 new tables"
+test "$(count_tables "$NEW_TABLES")" = "10"
+echo "upgrade ok: legacy campaign unchanged (active, not a draft), 10 new tables"
 
 for (( i=${#NEW[@]}-1; i>=0; i-- )); do run -f "${NEW[$i]}/rollback.sql"; done
 test "$(run -t -A -c "SELECT name FROM \"Automation\" WHERE id='au1'")" = "legacy"

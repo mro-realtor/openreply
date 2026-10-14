@@ -1,4 +1,6 @@
 import { Worker, type Job } from "bullmq";
+import { isContactsDedupEnabled, getCooldownHours } from "@/lib/contacts/config";
+import { decideDm, linkDmLog, resolveContact } from "@/lib/contacts/service";
 import {
   getDMQueue,
   getRedisConnection,
@@ -223,6 +225,9 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
 
+  const dedupOn = isContactsDedupEnabled();
+  const gated: { automationId: string; contactId: string }[] = [];
+
   for (const automation of automations) {
     // "Any word" campaigns fire on every comment; otherwise require a keyword hit.
     const matchResult = automation.matchAnyWord
@@ -256,6 +261,46 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     if (existingLog?.status === "SKIPPED_PLAN_LIMIT") continue;
     if (alreadyDmd && (alreadyPublicReplied || !automation.publicReplyEnabled)) {
       continue;
+    }
+
+    // Per-person dedup (flag off by default). Stop requests and repeat DMs to the
+    // same person are blocked here, before anything is sent.
+    if (dedupOn) {
+      const contact = await resolveContact(prisma, {
+        workspaceId: automation.workspaceId,
+        platform: "INSTAGRAM",
+        externalId: commenterId,
+        handle: commenterName,
+        displayName: commenterName,
+      });
+      if (needsDm) {
+        const verdict = await decideDm(prisma, {
+          contactId: contact.id,
+          automationId: automation.id,
+          cooldownHours: getCooldownHours(),
+        });
+        if (!verdict.allow) {
+          await prisma.dmLog.upsert({
+            where: { automationId_commentId: { automationId: automation.id, commentId } },
+            create: {
+              workspaceId: automation.workspaceId,
+              automationId: automation.id,
+              instagramAccountId: automation.instagramAccountId,
+              commenterId,
+              commenterName,
+              commentText,
+              commentId,
+              matchedKeyword: matchResult.matchedKeyword,
+              status: "SKIPPED_DEDUP",
+              errorMessage: `Skipped: ${verdict.reason}`,
+              contactId: contact.id,
+            },
+            update: { status: "SKIPPED_DEDUP", errorMessage: `Skipped: ${verdict.reason}`, contactId: contact.id },
+          });
+          continue;
+        }
+      }
+      gated.push({ automationId: automation.id, contactId: contact.id });
     }
 
     if (!automation.instagramAccount.accessToken) {
@@ -669,6 +714,16 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
         },
       });
       throw error;
+    }
+  }
+
+  // Link this comment's log to the person and stamp their last DM time.
+  // Best effort: a failure here must never fail the job after a DM was sent.
+  for (const g of gated) {
+    try {
+      await linkDmLog(prisma, { automationId: g.automationId, commentId, contactId: g.contactId });
+    } catch (linkError) {
+      console.error("contact link failed", formatError(linkError));
     }
   }
 }
