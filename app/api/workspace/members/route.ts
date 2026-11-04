@@ -114,53 +114,41 @@ export async function POST(request: NextRequest) {
   }
 
   const email = normalizeInvitationEmail(parsed.data.email);
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
+  // Provision membership immediately. Authentication still happens separately
+  // through the user's own email magic link; no invitation is required.
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.upsert({
+      where: { email },
+      create: { email },
+      update: {},
+      select: { id: true },
+    });
 
-  if (existingUser) {
-    await prisma.workspaceMember.upsert({
+    await tx.workspaceMember.upsert({
       where: {
         workspaceId_userId: {
           workspaceId: context.workspaceId,
-          userId: existingUser.id,
+          userId: user.id,
         },
       },
       create: {
         workspaceId: context.workspaceId,
-        userId: existingUser.id,
+        userId: user.id,
         role: parsed.data.role,
       },
-      update: {
-        role: parsed.data.role,
-      },
+      update: { role: parsed.data.role },
     });
-  } else {
-    await prisma.workspaceInvitation.upsert({
+
+    // Legacy pending invitations are no longer needed once provisioned.
+    await tx.workspaceInvitation.updateMany({
       where: {
-        workspaceId_email: {
-          workspaceId: context.workspaceId,
-          email,
-        },
-      },
-      create: {
         workspaceId: context.workspaceId,
         email,
-        role: parsed.data.role,
-        token: generateInvitationToken(),
-        invitedByUserId: context.userId,
-        expiresAt: getInvitationExpiry(),
-      },
-      update: {
-        role: parsed.data.role,
         status: "PENDING",
-        token: generateInvitationToken(),
-        invitedByUserId: context.userId,
-        expiresAt: getInvitationExpiry(),
       },
+      data: { status: "REVOKED" },
     });
-  }
+  });
 
   return NextResponse.json({
     success: true,
