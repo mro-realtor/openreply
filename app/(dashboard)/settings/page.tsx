@@ -107,6 +107,27 @@ export default function SettingsPage() {
     setBusy(null);
   }
 
+  async function activateInvitation(email: string, role: "ADMIN" | "MEMBER") {
+    setMemberError(null);
+    setBusy(`activate:${email}`);
+    try {
+      const res = await fetch("/api/workspace/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role }),
+      });
+      const payload = await res.json();
+      if (!res.ok || !payload.success) {
+        throw new Error(payload.error ?? "Could not activate member");
+      }
+      setMembersData(payload.data);
+    } catch (error) {
+      setMemberError(error instanceof Error ? error.message : "Could not activate member");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function removeInvitation(invitationId: string) {
     setBusy(`invite:${invitationId}`);
     await fetch("/api/workspace/members", {
@@ -242,7 +263,7 @@ export default function SettingsPage() {
         {membersData?.invitations.length ? (
           <div className="mt-6 border-t border-border pt-4">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Pending invites
+              Legacy pending invites
             </p>
             <div className="space-y-3">
               {membersData.invitations.map((invitation) => (
@@ -255,18 +276,17 @@ export default function SettingsPage() {
                       {invitation.email}
                     </p>
                     <p className="truncate text-xs text-muted">
-                      {invitation.role} · {invitation.inviteUrl}
+                      {invitation.role} · Activate to grant direct access
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() =>
-                        void navigator.clipboard?.writeText(invitation.inviteUrl)
-                      }
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
+                      onClick={() => activateInvitation(invitation.email, invitation.role === "ADMIN" ? "ADMIN" : "MEMBER")}
+                      disabled={busy !== null}
+                      className="rounded-lg border border-accent/40 px-3 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
                     >
-                      Copy
+                      {busy === `activate:${invitation.email}` ? "Activating..." : "Activate"}
                     </button>
                     <button
                       type="button"
