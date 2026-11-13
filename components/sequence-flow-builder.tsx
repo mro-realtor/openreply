@@ -50,7 +50,16 @@ export default function SequenceFlowBuilder({
     current.map((step, position) => position === index ? { ...step, message: value } : step)
   );
   function addMessage() {
-    setMessages((current) => [...current, { id: globalThis.crypto.randomUUID(), message: "", delayMinutes: 0 }]);
+    const newId = globalThis.crypto.randomUUID();
+    setMessages((current) => {
+      const identified = current.map((step) => ({ ...step, id: step.id ?? globalThis.crypto.randomUUID() }));
+      return [
+        ...identified.map((step, position) => position === index
+          ? { ...step, routes: { ...step.routes, next: newId } }
+          : step),
+        { id: newId, routes: { next: null }, message: "", delayMinutes: 0 },
+      ];
+    });
     setIndex(messages.length);
     setPanel("message");
   }
