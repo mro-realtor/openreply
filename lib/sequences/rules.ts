@@ -1,15 +1,38 @@
 import { z } from "zod";
+import { validateSequenceGraph } from "./graph";
 
 const WINDOW_MINUTES = 24 * 60;
 
-export const sequenceSteps = z.array(z.object({
+const sequenceStep = z.object({
+  id: z.string().trim().min(1).max(100).optional(),
+  routes: z.record(z.string(), z.string().nullable()).optional(),
   message: z.string().trim().min(1).max(1000),
-  buttons: z.array(z.object({ title: z.string().trim().min(1).max(20), url: z.url({ protocol: /^https?$/ }) })).max(3).optional(),
-  position: z.object({ x: z.number().min(0).max(100000), y: z.number().min(0).max(100000) }).optional(),
+  buttons: z.array(z.object({
+    title: z.string().trim().min(1).max(20),
+    url: z.url({ protocol: /^https?$/ }),
+  })).max(3).optional(),
+  position: z.object({
+    x: z.number().min(0).max(100000),
+    y: z.number().min(0).max(100000),
+  }).optional(),
   delayMinutes: z.number().int().min(0).max(WINDOW_MINUTES - 1),
-}).refine(step => !step.buttons?.length || step.message.length <= 640, "Messages with buttons must be 640 characters or fewer.")).min(1).refine(
+}).refine(
+  (step) => !step.buttons?.length || step.message.length <= 640,
+  "Messages with buttons must be 640 characters or fewer.",
+);
+
+export const sequenceSteps = z.array(sequenceStep).min(1).superRefine((steps, context) => {
+  try {
+    validateSequenceGraph(steps);
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "Invalid sequence graph.",
+    });
+  }
+}).refine(
   (steps) => steps.reduce((total, step) => total + step.delayMinutes, 0) < WINDOW_MINUTES,
-  "Total delay must be under 24 hours."
+  "Total delay must be under 24 hours.",
 );
 
 export const sequenceInput = z.object({
