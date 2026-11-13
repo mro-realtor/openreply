@@ -79,6 +79,7 @@ model Workspace {
   invitations       WorkspaceInvitation[]
   instagramAccounts InstagramAccount[]
   automations       Automation[]
+  sequences         Sequence[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
@@ -190,6 +191,7 @@ model Automation {
   requireFollow           Boolean @default(false)
   followPromptMessage     String?
   followPromptButtonLabel String?
+  sequenceId      String?
   followUpEnabled Boolean @default(false)
   followUpMessage String?
   // Minutes to wait after the link is delivered before sending the follow-up.
@@ -214,8 +216,61 @@ model Automation {
 
   @@index([workspaceId])
   @@index([instagramAccountId])
+  sequence         Sequence? @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  sequenceEnrollments SequenceEnrollment[]
+
+  @@index([sequenceId])
   @@index([postId])
 }
+
+model Sequence {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  steps       Json
+  enabled     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaigns   Automation[]
+  enrollments SequenceEnrollment[]
+
+  @@index([workspaceId])
+}
+
+enum SequenceStatus {
+  PENDING
+  SENDING
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+model SequenceEnrollment {
+  id                 String         @id @default(cuid())
+  sequenceId         String
+  automationId       String
+  instagramAccountId String
+  recipientId        String
+  recipientName      String?
+  interactionAt      DateTime
+  dueAt              DateTime
+  steps              Json
+  nextStep           Int            @default(0)
+  status             SequenceStatus @default(PENDING)
+  reason             String?
+  updatedAt          DateTime       @updatedAt
+
+  sequence   Sequence   @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, instagramAccountId, recipientId])
+  @@index([status, dueAt])
+  @@index([instagramAccountId, recipientId, status])
+}
+
 
 model DmLog {
   id                 String     @id @default(cuid())

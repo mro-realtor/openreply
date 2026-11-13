@@ -61,6 +61,7 @@ interface WebhookEntry {
     };
   }>;
   messaging?: Array<{
+    timestamp?: number;
     sender?: { id?: string };
     recipient?: { id?: string };
     postback?: { mid?: string; title?: string; payload?: string };
@@ -81,6 +82,7 @@ export interface WebhookMessageEvent {
   messageId: string;
   messageText: string;
   senderId: string;
+  interactionAt?: number;
 }
 
 export interface WebhookPostbackEvent {
@@ -88,6 +90,7 @@ export interface WebhookPostbackEvent {
   userId: string;
   payload: string;
   mid?: string;
+  interactionAt?: number;
 }
 
 export interface WebhookReadEvent {
@@ -168,6 +171,7 @@ export function parsePostbackEvents(
         userId,
         payload: postbackPayload,
         mid: messaging.postback?.mid,
+        interactionAt: messaging.timestamp,
       });
     }
   }
@@ -214,7 +218,7 @@ export function parseMessageEvents(
         messageId,
         messageText: text,
         senderId,
-      });
+        interactionAt: messaging.timestamp,      });
     }
   }
 

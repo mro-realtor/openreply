@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
           userId: event.userId,
           payload: event.payload,
           mid: event.mid,
+          interactionAt: event.interactionAt,
         },
         {
           // BullMQ forbids ":" in custom job ids, and the payload is
@@ -156,6 +157,7 @@ export async function POST(request: NextRequest) {
           messageId: event.messageId,
           messageText: event.messageText,
           senderId: event.senderId,
+          interactionAt: event.interactionAt,
         },
         {
           // Message ids can contain characters BullMQ rejects in a job id (":"
