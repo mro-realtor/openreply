@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
 import { readCache, writeCache } from "@/lib/client-cache";
 import type { ConversationListItem } from "@/app/api/instagram/conversations/route";
@@ -35,7 +36,53 @@ function formatTime(iso: string | null): string {
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+type FacebookThread = { id: string; pageId: string; pageName: string; recipientId: string; events: {
+  eventId: string; receivedAt: string; text: string | null; kind: string;
+}[] };
+
 export default function InboxPage() {
+  const [channel, setChannel] = useState("all");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("newest");
+  const [facebook, setFacebook] = useState<FacebookThread[]>([]);
+  const [facebookError, setFacebookError] = useState("");
+  const [facebookEditable, setFacebookEditable] = useState(false);
+  const [facebookId, setFacebookId] = useState<string>();
+  const facebookActive = facebook.find((thread) => thread.id === facebookId);
+
+  useEffect(() => {
+    let active = true;
+    async function loadFacebook() {
+      try {
+        const response = await fetch("/api/messenger", { cache: "no-store" });
+        if (!response.ok) throw new Error("Unable to load Facebook conversations.");
+        const data = await response.json() as { editable: boolean; pages: {
+          id: string; name: string; events: (FacebookThread["events"][number] & { recipientId: string })[];
+        }[] };
+        const threads = new Map<string, FacebookThread>();
+        for (const page of data.pages) {
+          for (const event of page.events) {
+            const id = `${page.id}:${event.recipientId}`;
+            const thread = threads.get(id) ?? {
+              id, pageId: page.id, pageName: page.name, recipientId: event.recipientId, events: [],
+            };
+            thread.events.push(event);
+            threads.set(id, thread);
+          }
+        }
+        if (active) {
+          setFacebook([...threads.values()]);
+          setFacebookEditable(data.editable);
+          setFacebookError("");
+        }
+      } catch {
+        if (active) setFacebookError("Unable to load Facebook conversations.");
+      }
+    }
+    void loadFacebook();
+    const timer = setInterval(loadFacebook, POLL_MS);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
   const [enrollmentChoices, setEnrollmentChoices] = useState<{ id: string; name: string }[] | null>(null);
   const [enrollmentNotice, setEnrollmentNotice] = useState("");
   const [enrolling, setEnrolling] = useState(false);
@@ -197,6 +244,7 @@ export default function InboxPage() {
   }, [messages]);
 
   function openConversation(id: string) {
+    setFacebookId(undefined);
     setActiveId(id);
     setEnrollmentChoices(null);
     setEnrollmentNotice("");
@@ -293,73 +341,109 @@ export default function InboxPage() {
     }
   }
 
+  const threads = [
+    ...(channel !== "facebook" ? conversations.map((conversation) => ({
+      id: conversation.id, channel: "Instagram", name: `@${conversation.contact.username ?? "unknown"}`,
+      text: conversation.lastMessage?.text, date: conversation.updatedTime,
+    })) : []),
+    ...(channel !== "instagram" ? facebook.map((thread) => ({
+      id: thread.id, channel: "Facebook", name: `${thread.pageName} · ${thread.recipientId}`,
+      text: thread.events[0]?.text, date: thread.events[0]?.receivedAt ?? null,
+    })) : []),
+  ].filter((thread) => `${thread.name} ${thread.text ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((left, right) => (sort === "newest" ? 1 : -1) * ((right.date ?? "").localeCompare(left.date ?? "")));
+
+  async function sendFacebookReply() {
+    if (!facebookActive || !draft.trim() || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const response = await fetch("/api/messenger", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageId: facebookActive.pageId, recipientId: facebookActive.recipientId, text: draft.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setDraft("");
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Reply failed");
+    } finally { setSending(false); }
+  }
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-end justify-between gap-4">
-        <h1 className="text-lg font-semibold text-foreground">Inbox</h1>
-        {accounts.length > 1 && (
-          <AccountSelect
-            accounts={accounts}
-            value={selectedAccountId}
-            onChange={setSelectedAccountId}
-            includeAll={false}
-          />
+    <div className="space-y-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
+        <input type="search" aria-label="Search through Inbox conversations" placeholder="Search through Inbox conversations"
+          className="w-full max-w-sm rounded border border-border bg-surface px-3 py-2 text-sm"
+          value={search} onChange={(event) => setSearch(event.target.value)} />
+        <Link className="rounded border border-border px-3 py-2 text-sm" href="/messenger">Add Channel</Link>
+      </header>
+      <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-surface p-2 text-sm">
+        <select aria-label="Channel" className="rounded border border-border bg-surface p-2" value={channel}
+          onChange={(event) => { setChannel(event.target.value); setActiveId(null); setFacebookId(undefined); setDraft(""); }}>
+          <option value="all">All channels</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option>
+        </select>
+        <select aria-label="Sort conversations" className="rounded border border-border bg-surface p-2" value={sort}
+          onChange={(event) => setSort(event.target.value)}>
+          <option value="newest">Sort: Newest</option><option value="oldest">Sort: Oldest</option>
+        </select>
+        {channel !== "facebook" && accounts.length > 1 && (
+          <AccountSelect accounts={accounts} value={selectedAccountId} onChange={setSelectedAccountId} includeAll={false} />
         )}
       </div>
-
-      <div className="grid h-[calc(100dvh-11rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[300px_1fr]">
-        {/* Conversation list. On mobile it takes the full pane and is hidden
-            once a thread is open (ManyChat-style); on sm+ it is always shown. */}
-        <div
-          className={`min-h-0 flex-col border-b border-border sm:flex sm:border-b-0 sm:border-r ${
-            active ? "hidden" : "flex"
-          }`}
-        >
-          <div className="shrink-0 border-b border-border px-4 py-3 text-sm font-semibold text-foreground">
-            Conversations
-          </div>
+      <div className="grid h-[calc(100dvh-13rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[310px_1fr]">
+        <div className={`min-h-0 flex-col border-border sm:flex sm:border-r ${active || facebookActive ? "hidden" : "flex"}`}>
+          <div className="border-b border-border px-4 py-3 text-sm font-semibold">All chats</div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {convLoading ? (
-              <p className="px-4 py-6 text-sm text-muted">Loading…</p>
-            ) : convError ? (
-              <p className="px-4 py-6 text-sm text-error">{convError}</p>
-            ) : conversations.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted">No conversations yet.</p>
-            ) : (
-              conversations.map((c) => {
-                const isActive = c.id === activeId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => openConversation(c.id)}
-                    className={`block w-full border-b border-border px-4 py-3 text-left ${
-                      isActive ? "bg-surface-hover" : "hover:bg-surface-hover"
-                    }`}
-                  >
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        @{c.contact.username ?? "unknown"}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-zinc-500">
-                        {formatTime(c.updatedTime)}
-                      </span>
-                    </div>
-                    {c.lastMessage && (
-                      <p className="mt-0.5 truncate text-xs text-muted">
-                        {c.lastMessage.fromMe ? "You: " : ""}
-                        {c.lastMessage.text || "(no text)"}
-                      </p>
-                    )}
-                  </button>
-                );
-              })
-            )}
+            {channel !== "facebook" && convLoading && accounts.length > 0 && <p className="p-4 text-sm text-muted">Loading Instagram…</p>}
+            {channel !== "facebook" && convError && <p className="p-4 text-sm text-error">{convError}</p>}
+            {channel !== "instagram" && facebookError && <p className="p-4 text-sm text-error">{facebookError}</p>}
+            {!threads.length && <p className="p-4 text-sm text-muted">No conversations found.</p>}
+            {threads.map((thread) => (
+              <button key={`${thread.channel}:${thread.id}`} type="button"
+                className={`block w-full border-b border-border px-4 py-3 text-left hover:bg-surface-hover ${thread.id === (activeId ?? facebookId) ? "bg-surface-hover" : ""}`}
+                onClick={() => {
+                  setDraft("");
+                  if (thread.channel === "Instagram") openConversation(thread.id);
+                  else { setActiveId(null); setFacebookId(thread.id); setSendError(null); }
+                }}>
+                <span className="flex justify-between gap-2 text-sm font-medium">
+                  <span className="truncate">{thread.name}</span>
+                  <span className="shrink-0 text-xs text-muted">{formatTime(thread.date)}</span>
+                </span>
+                <span className="block truncate text-xs text-muted">{thread.channel} · {thread.text || "No text"}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Thread. On mobile it is only shown once a conversation is open and
-            fills the pane; on sm+ it always sits beside the list. */}
+        {facebookActive ? (
+          <section className="flex min-h-0 flex-col">
+            <header className="flex items-center gap-2 border-b border-border p-4 text-sm font-semibold">
+              <button type="button" onClick={() => setFacebookId(undefined)} className="sm:hidden">Back</button>
+              <span>Facebook · {facebookActive.pageName}</span>
+            </header>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              {[...facebookActive.events].reverse().map((event) => (
+                <div key={event.eventId} className={`max-w-[75%] rounded-lg border border-border p-3 text-sm ${event.kind === "OUTBOUND" ? "ml-auto bg-blue-600 text-white" : "bg-surface"}`}>
+                  <p className="whitespace-pre-wrap break-words">{event.text ?? "Attachment"}</p>
+                  <p className="mt-1 text-xs opacity-70">{formatTime(event.receivedAt)}</p>
+                </div>
+              ))}
+            </div>
+            {facebookEditable && (
+              <form className="space-y-2 border-t border-border p-3" onSubmit={(event) => { event.preventDefault(); void sendFacebookReply(); }}>
+                {sendError && <p role="alert" className="text-sm text-error">{sendError}</p>}
+                <div className="flex gap-2">
+                  <textarea aria-label="Facebook reply" placeholder="Write a reply…" className="flex-1 rounded border border-border bg-surface p-2"
+                    rows={1} maxLength={2000} value={draft} onChange={(event) => setDraft(event.target.value)} />
+                  <button className="rounded bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50" disabled={sending || !draft.trim()}>Send</button>
+                </div>
+              </form>
+            )}
+          </section>
+        ) : (
         <div
           className={`min-h-0 flex-col ${active ? "flex" : "hidden sm:flex"}`}
         >
@@ -459,6 +543,7 @@ export default function InboxPage() {
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );

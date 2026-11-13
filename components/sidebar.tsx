@@ -13,7 +13,6 @@ const navItems = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Overview", href: "/overview" },
   { label: "Inbox", href: "/inbox" },
-  { label: "Messenger", href: "/messenger" },
   { label: "Campaigns", href: "/campaigns" },
   { label: "Sequences", href: "/sequences" },
   { label: "DM Logs", href: "/logs" },
