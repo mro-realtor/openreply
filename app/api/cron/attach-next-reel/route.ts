@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
+import { NEXT_REEL_BINDABLE_WHERE } from "@/lib/services/campaign-mapper";
 import { getUserMedia, type InstagramMedia } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   const pending = await prisma.automation.findMany({
-    where: { pendingNextReel: true },
+    where: NEXT_REEL_BINDABLE_WHERE,
     include: { instagramAccount: true },
   });
 
