@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import SequenceFlowBuilder from "@/components/sequence-flow-builder";
 
-type Step = { position?: { x: number; y: number }; delayMinutes: number; message: string };
+type Step = { buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; delayMinutes: number; message: string };
 type Enrollment = {
   id: string;
   recipientName: string | null;

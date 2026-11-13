@@ -3,7 +3,7 @@
 import SequenceTriggerForm, { type SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import { useId, useRef, useState, type PointerEvent } from "react";
 
-type Step = { position?: { x: number; y: number }; message: string; delayMinutes: number };
+type Step = { buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
 
 type Campaign = {
   id: string;
@@ -66,6 +66,18 @@ export default function SequenceFlowBuilder({
 
   const [index, setIndex] = useState(initialIndex);
   const [addMenu, setAddMenu] = useState(false);
+  const [stepSearch, setStepSearch] = useState("");
+  const [moreBlocks, setMoreBlocks] = useState(false);
+  const palette = [
+    { title: "Starting Step", items: [{ name: "Trigger", icon: "▷", action: () => { setAddMenu(false); openTriggers(); } }] },
+    { title: "Content", items: [
+      { name: "Instagram", icon: "◎", action: addMessage }, { name: "Messenger", icon: "◉" },
+      { name: "Channel", icon: "+" }, { name: "Start Automation", icon: "⇥" },
+    ] },
+    { title: "AI", items: [{ name: "AI Step", icon: "✧" }] },
+    { title: "Logic", items: [{ name: "Actions", icon: "⚡" }, { name: "Condition", icon: "◇" },
+      { name: "Randomizer", icon: "⤨" }, { name: "Smart Delay", icon: "◷" }] },
+  ];
   const message = messages[index].message;
   const setMessage = (value: string) => setMessages((current) =>
     current.map((step, position) => position === index ? { ...step, message: value } : step)
@@ -91,9 +103,24 @@ export default function SequenceFlowBuilder({
     setPanel("triggers");
   };
 
+  const buttons = messages[index].buttons ?? [];
+  function setButtons(buttons: NonNullable<Step["buttons"]>) {
+    setMessages(current => current.map((step, position) => position === index ? { ...step, buttons } : step));
+  }
+  function updateButton(index: number, value: Partial<NonNullable<Step["buttons"]>[number]>) {
+    setButtons(buttons.map((button, position) => position === index ? { ...button, ...value } : button));
+  }
+  const invalidMessage = messages.some(step => !step.message.trim() || Boolean(step.buttons?.length && (
+    step.message.trim().length > 640 || step.buttons.some(button => {
+      try { return !button.title.trim() || !["http:", "https:"].includes(new URL(button.url).protocol); }
+      catch { return true; }
+    })
+  )));
+
   const composer = (
     <div className="space-y-3">
-      <label className="block text-sm font-semibold" htmlFor="sequence-message-text">Send Message</label>
+      <p className="border-b border-[#e5e7eb] pb-4 text-sm">Send <span className="font-medium text-[#0069dc]">within 24 hour window</span></p>
+      <label className="sr-only" htmlFor="sequence-message-text">Send Message</label>
       <textarea id="sequence-message-text" placeholder="Enter your text…" rows={6}
         className="w-full rounded-lg border border-[#dce0e5] bg-[#f7f7f8] p-3 text-sm outline-offset-2"
         maxLength={1000} readOnly={!editable} value={message} onChange={(event) => setMessage(event.target.value)} />
@@ -101,6 +128,27 @@ export default function SequenceFlowBuilder({
         <button type="button" disabled={!editable || message.length > 990}
           className="font-medium text-[#0069dc] disabled:opacity-50" onClick={() => setMessage(message + "{username}")}>Insert username</button>
         <span>{message.length}/1000</span>
+      </div>
+      {buttons.map((button, position) => <div key={position} className="grid gap-2 rounded border border-[#dce0e5] p-3 text-sm">
+        <label>Button title<input className={control + " w-full"} value={button.title} maxLength={20} readOnly={!editable}
+          onChange={event => updateButton(position, { title: event.target.value })} /></label>
+        <label>Website URL<input className={control + " w-full"} type="url" value={button.url} readOnly={!editable}
+          onChange={event => updateButton(position, { url: event.target.value })} /></label>
+        {editable && <button type="button" className={control} onClick={() => setButtons(buttons.filter((_, item) => item !== position))}>Remove button</button>}
+      </div>)}
+      {editable && buttons.length < 3 && <button type="button" className={control + " w-full"}
+        onClick={() => setButtons([...buttons, { title: "", url: "" }])}>+ Add Button</button>}
+      {buttons.length > 0 && <p className="text-xs text-[#535d6c]">Website buttons require a title, an HTTP or HTTPS URL, and a message of up to 640 characters.</p>}
+      <div className="space-y-2 border-t border-[#e5e7eb] pt-4">
+        <p className="text-xs text-[#535d6c]">Content blocks</p>
+        <button type="button" className="w-full rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm"
+          onClick={() => document.getElementById("sequence-message-text")?.focus()}>Text</button>
+        {["Image", "PDF", "Delay", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
+          <button key={name} type="button" disabled className="flex w-full justify-between rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm text-[#535d6c]">
+            <span>{name}</span><span className="text-xs">Unavailable</span>
+          </button>)}
+        <button type="button" className={control + " w-full text-left"} aria-expanded={moreBlocks}
+          onClick={() => setMoreBlocks(!moreBlocks)}>{moreBlocks ? "Show less" : "More"}</button>
       </div>
     </div>
   );
@@ -126,15 +174,15 @@ export default function SequenceFlowBuilder({
             Go to {basic ? "Flow" : "Basic"} Builder
           </button>
           <button className={control} onClick={() => setPanel(panel === "preview" ? undefined : "preview")}>Preview</button>
-          {editable && <button className={blue} disabled={messages.some((step) => !step.message.trim())} onClick={() => onSave(messages.map((step) => ({ ...step, message: step.message.trim() })), ids)}>Save Flow</button>}
+          {editable && <button className={blue} disabled={invalidMessage} onClick={() => onSave(messages.map((step) => ({ ...step, message: step.message.trim() })), ids)}>Save Flow</button>}
         </div>
       </header>
 
       <div className="relative flex min-h-[calc(100dvh-12rem)] flex-col lg:flex-row">
         {panel && (
-          <aside className="z-10 w-full shrink-0 border-r border-[#dfe1e5] bg-white lg:w-[340px]">
+          <aside className="z-10 max-h-[calc(100dvh-10rem)] w-full shrink-0 overflow-y-auto border-r border-[#dfe1e5] bg-white lg:w-[340px]">
             <div className={`flex items-center justify-between gap-2 px-4 py-4 font-semibold ${panel === "triggers" ? "bg-[#ddf6e8]" : panel === "message" ? "bg-[#f1dbf4]" : "bg-[#e5f1ff]"}`}>
-              {panel === "triggers" ? "Start automation when…" : panel === "message" ? "Send Message" : "Preview"}
+              {panel === "triggers" ? "Start automation when…" : panel === "message" ? `Send Message${index ? ` #${index + 1}` : ""}` : "Preview"}
               <button className="px-2" aria-label="Close panel" onClick={() => setPanel(undefined)}>×</button>
             </div>
             <div className="space-y-3 p-4">
@@ -208,8 +256,26 @@ export default function SequenceFlowBuilder({
                 <div className="relative">
                   <button className="grid size-12 place-items-center rounded-full bg-[#0069dc] text-3xl text-white shadow-md"
                     aria-label="Add step" aria-expanded={addMenu} onClick={() => setAddMenu(!addMenu)}>+</button>
-                  {addMenu && <div className="absolute right-0 z-20 mt-2 w-52 rounded-lg border border-[#dfe1e5] bg-white p-2 shadow-lg">
-                    <button className="w-full rounded-md p-3 text-left text-sm hover:bg-[#f3f7fc]" onClick={addMessage}>Instagram · Send Message</button>
+                  {addMenu && <div aria-label="Add a step" className="absolute right-0 z-20 mt-2 max-h-[min(68dvh,620px)] w-[min(360px,75vw)] overflow-y-auto rounded-lg border border-[#dfe1e5] bg-white p-4 shadow-xl"
+                    onKeyDown={(event) => { if (event.key === "Escape") setAddMenu(false); }}>
+                    <input type="search" aria-label="Search steps" placeholder="Search steps" value={stepSearch}
+                      onChange={(event) => setStepSearch(event.target.value)} className="mb-3 w-full rounded border border-[#dfe1e5] px-3 py-2 text-sm" />
+                    {palette.map(({ title, items }) => {
+                      const visible = items.filter(({ name }) => name.toLowerCase().includes(stepSearch.trim().toLowerCase()));
+                      if (!visible.length) return null;
+                      return <section key={title} className="mb-4 last:mb-0">
+                        <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+                        <div className="grid grid-cols-2 gap-2">
+                          {visible.map(({ name, icon, action }) => (
+                            <button key={name} type="button" onClick={action} disabled={!action}
+                              className="rounded-lg border border-dashed border-[#c3c9d0] p-3 text-left text-sm enabled:hover:border-[#0069dc] enabled:hover:bg-[#eef6ff] disabled:text-[#535d6c]">
+                              <span aria-hidden="true" className="mr-2 text-[#0069dc]">{icon}</span>{name}
+                              {!action && <span className="block text-xs">Unavailable</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </section>;
+                    })}
                   </div>}
                 </div>
               )}
@@ -249,6 +315,7 @@ export default function SequenceFlowBuilder({
                         onClick={() => { setIndex(position); setPanel("message"); }}>
                         <span className="block font-semibold">Send Message{position ? ` #${position + 1}` : ""}</span>
                         <span className="mt-2 line-clamp-2 break-words rounded bg-[#f3f4f6] p-2 text-sm">{step.message || "Add a text"}</span>
+                        {step.buttons?.map((button, index) => <span key={index} className="mt-1 block rounded bg-[#f3f4f6] p-2 text-center text-xs text-[#0069dc]">{button.title || "Website button"}</span>)}
                       </button>
                     </div>
                   ))}
@@ -257,7 +324,7 @@ export default function SequenceFlowBuilder({
             </div>
             <div className="mt-auto flex justify-end gap-2 pt-10">
               {editable && <button className={control} onClick={() => setMessages((items) =>
-                items.map(({ message, delayMinutes }) => ({ message, delayMinutes }))
+                items.map((step) => ({ ...step, position: undefined }))
               )}>Auto Arrange Steps</button>}
               <button className={control} aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.65, value - 0.1))}>−</button>
               <button className={control} aria-label="Reset zoom" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
