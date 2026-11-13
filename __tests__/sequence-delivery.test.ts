@@ -25,6 +25,7 @@ vi.mock("@/lib/billing/usage", () => ({
 
 import { cancelOnReply, deliverDueSequenceSteps, enrollInSequence } from "@/lib/sequences/delivery";
 import { resolveSequenceRoute, validateSequenceGraph } from "@/lib/sequences/graph";
+import { sequenceSteps } from "@/lib/sequences/rules";
 
 const steps = [{ message: "First", delayMinutes: 0 }, { message: "Second", delayMinutes: 2 }];
 const campaign = { id: "campaign", sequenceId: "seq", workspaceId: "workspace", instagramAccountId: "account" };
@@ -104,6 +105,24 @@ describe("sequence delivery", () => {
     expect(() => validateSequenceGraph(steps)).not.toThrow();
     expect(resolveSequenceRoute(steps, 0, "quickReply:buy")).toBe(1);
     expect(resolveSequenceRoute(steps, 0, "quickReply:rent")).toBe(2);
+  });
+
+  it("validates quick reply limits and prevents mixing website buttons with quick replies", () => {
+    const makeStep = (quickReplies: Array<{ id: string; title: string }>) => [{
+      id: "question",
+      routes: {},
+      message: "Choose",
+      delayMinutes: 0,
+      quickReplies,
+    }];
+    const oneChoice = [{ id: "buy", title: "Buy" }];
+
+    expect(sequenceSteps.safeParse(makeStep(oneChoice)).success).toBe(true);
+    expect(sequenceSteps.safeParse(makeStep(Array.from({ length: 14 }, (_, i) => ({ id: "r" + i, title: "Choice " + i })))).success).toBe(false);
+    expect(sequenceSteps.safeParse([{
+      ...makeStep(oneChoice)[0],
+      buttons: [{ title: "Open", url: "https://example.com" }],
+    }]).success).toBe(false);
   });
 
   it("sends quick replies and holds the enrollment until a choice arrives", async () => {
