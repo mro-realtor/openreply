@@ -64,6 +64,13 @@ export async function PATCH(request: Request) {
       body: JSON.stringify({ recipient: { id: recipientId }, messaging_type: "RESPONSE", message: { text } }),
     });
     if (!response.ok) return NextResponse.json({ error: "Meta rejected the send. Check Page permissions and the token." }, { status: 502 });
+    const result = await response.json() as { message_id?: string };
+    if (result.message_id) {
+      await prisma.messengerEvent.createMany({
+        data: [{ pageId, recipientId, eventId: result.message_id, receivedAt: new Date(), kind: "OUTBOUND", text }],
+        skipDuplicates: true,
+      }).catch(() => console.error("[Messenger] Meta accepted a reply but history could not be saved"));
+    }
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Delivery could not be confirmed" }, { status: 502 });
