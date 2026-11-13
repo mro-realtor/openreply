@@ -78,7 +78,7 @@ export default function SequenceFlowBuilder({
       const identified = current.map((step) => ({ ...step, id: step.id ?? globalThis.crypto.randomUUID() }));
       return [
         ...identified.map((step, position) => position === index
-          ? { ...step, routes: { ...step.routes, next: newId } }
+          ? step.quickReplies?.length ? step : { ...step, routes: { ...step.routes, next: newId } }
           : step),
         { id: newId, routes: { next: null }, message: "", delayMinutes: 0 },
       ];
