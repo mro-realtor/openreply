@@ -41,17 +41,40 @@ export default function SequenceFlowBuilder({
   onSave: (steps: Step[], campaignIds: string[]) => void;
 }) {
   const [messages, setMessages] = useState(steps);
+  const [past, setPast] = useState<Step[][]>([]);
+  const [future, setFuture] = useState<Step[][]>([]);
+
+  function changeMessages(update: Step[] | ((current: Step[]) => Step[])) {
+    const next = typeof update === "function" ? update(messages) : update;
+    setPast((items) => [...items, messages].slice(-50));
+    setFuture([]);
+    setMessages(next);
+  }
+
+  function undo() {
+    if (!past.length) return;
+    setFuture((items) => [messages, ...items].slice(0, 50));
+    setMessages(past[past.length - 1]);
+    setPast((items) => items.slice(0, -1));
+  }
+
+  function redo() {
+    if (!future.length) return;
+    setPast((items) => [...items, messages].slice(-50));
+    setMessages(future[0]);
+    setFuture((items) => items.slice(1));
+  }
 
 
   const [index, setIndex] = useState(initialIndex);
   const [moreBlocks, setMoreBlocks] = useState(false);
   const message = messages[index].message;
-  const setMessage = (value: string) => setMessages((current) =>
+  const setMessage = (value: string) => changeMessages((current) =>
     current.map((step, position) => position === index ? { ...step, message: value } : step)
   );
   function addMessage() {
     const newId = globalThis.crypto.randomUUID();
-    setMessages((current) => {
+    changeMessages((current) => {
       const identified = current.map((step) => ({ ...step, id: step.id ?? globalThis.crypto.randomUUID() }));
       return [
         ...identified.map((step, position) => position === index
@@ -78,7 +101,7 @@ export default function SequenceFlowBuilder({
 
   const buttons = messages[index].buttons ?? [];
   function setButtons(buttons: NonNullable<Step["buttons"]>) {
-    setMessages(current => current.map((step, position) => position === index ? { ...step, buttons } : step));
+    changeMessages(current => current.map((step, position) => position === index ? { ...step, buttons } : step));
   }
   function updateButton(index: number, value: Partial<NonNullable<Step["buttons"]>[number]>) {
     setButtons(buttons.map((button, position) => position === index ? { ...button, ...value } : button));
@@ -155,6 +178,8 @@ export default function SequenceFlowBuilder({
           <h1 className="text-lg font-semibold">Edit</h1>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button className={control} aria-label="Undo" disabled={!editable || past.length === 0} onClick={undo}>Undo</button>
+          <button className={control} aria-label="Redo" disabled={!editable || future.length === 0} onClick={redo}>Redo</button>
           <button className={control} onClick={() => { setBasic(!basic); setPanel(undefined); }}>
             Go to {basic ? "Flow" : "Basic"} Builder
           </button>
@@ -239,7 +264,7 @@ export default function SequenceFlowBuilder({
             selectedIndex={index}
             editable={editable}
             onSelectStep={(selectedIndex) => { setIndex(selectedIndex); setPanel("message"); }}
-            onMessagesChange={setMessages}
+            onMessagesChange={changeMessages}
             onAddMessage={addMessage}
             onOpenTriggers={openTriggers}
           />
