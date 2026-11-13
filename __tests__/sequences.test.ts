@@ -17,6 +17,11 @@ describe("Instagram sequences", () => {
     expect(sequenceInput.safeParse({ name: "IB", steps: [], enabled: true }).success).toBe(false);
   });
 
+  it("allows more than 20 messages in the Instagram window", () => {
+    const steps = Array.from({ length: 50 }, () => ({ message: "Follow-up", delayMinutes: 1 }));
+    expect(sequenceInput.safeParse({ name: "IB", steps }).success).toBe(true);
+  });
+
   it("rejects blank messages and schedules at or beyond the window", () => {
     const parse = (steps: unknown) => sequenceInput.safeParse({ name: "IB", steps });
     expect(parse([{ message: "Hi", delayMinutes: 60 }]).success).toBe(true);
