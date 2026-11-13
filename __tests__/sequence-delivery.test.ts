@@ -33,8 +33,9 @@ describe("sequence delivery", () => {
     enrollment.findMany.mockResolvedValue([{ id: "entry" }]);
     enrollment.findUnique.mockResolvedValue({
       status: "PENDING",
-      sequence: { id: "seq", enabled: true },
-      automation: { ...campaign, isActive: true, instagramAccount: { instagramId: "ig", accessToken: "encrypted" } },
+      sequence: { id: "seq", enabled: true, workspaceId: "workspace" },
+      automation: { ...campaign, isActive: true },
+      account: { instagramId: "ig", accessToken: "encrypted" },
       nextStep: 0,
       recipientId: "contact",
       recipientName: null,
@@ -59,6 +60,13 @@ describe("sequence delivery", () => {
     expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: "PENDING", nextStep: { increment: 1 } }),
     }));
+  });
+
+  it("delivers an Inbox subscription without a campaign", async () => {
+    const entry = await enrollment.findUnique();
+    enrollment.findUnique.mockResolvedValue({ ...entry, automation: null });
+    await deliverDueSequenceSteps();
+    expect(send).toHaveBeenCalledWith("token", "ig", "contact", "First");
   });
 
   it("skips the send if another worker already claimed it", async () => {

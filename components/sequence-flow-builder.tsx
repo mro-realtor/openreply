@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useRef, useState, type PointerEvent } from "react";
 
-type Step = { message: string; delayMinutes: number };
+type Step = { position?: { x: number; y: number }; message: string; delayMinutes: number };
 
 type Campaign = {
   id: string;
@@ -37,6 +37,31 @@ export default function SequenceFlowBuilder({
   onSave: (steps: Step[], campaignIds: string[]) => void;
 }) {
   const [messages, setMessages] = useState(steps);
+  const marker = useId();
+  const drag = useRef<{ index: number; x: number; y: number; pointerX: number; pointerY: number }>(null);
+  const positions = messages.map((step, index) => step.position ?? {
+    x: index % 2 ? 710 : 365,
+    y: 45 + Math.floor(index / 2) * 210 + (index % 2) * 95,
+  });
+  const canvasWidth = Math.max(1020, ...positions.map(({ x }) => x + 320));
+  const canvasHeight = Math.max(380, ...positions.map(({ y }) => y + 180));
+
+  function beginDrag(event: PointerEvent<HTMLButtonElement>, index: number) {
+    if (event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { index, ...positions[index], pointerX: event.clientX, pointerY: event.clientY };
+  }
+
+  function moveCard(event: PointerEvent<HTMLButtonElement>) {
+    const start = drag.current;
+    if (!start) return;
+    const position = {
+      x: Math.min(100000, Math.max(0, Math.round(start.x + (event.clientX - start.pointerX) / zoom))),
+      y: Math.min(100000, Math.max(0, Math.round(start.y + (event.clientY - start.pointerY) / zoom))),
+    };
+    setMessages((current) => current.map((step, index) => index === start.index ? { ...step, position } : step));
+  }
+
   const [index, setIndex] = useState(initialIndex);
   const [addMenu, setAddMenu] = useState(false);
   const message = messages[index].message;
@@ -180,40 +205,51 @@ export default function SequenceFlowBuilder({
                 </div>
               )}
             </div>
-            <div className="mx-auto grid w-full max-w-4xl items-start gap-4 md:grid-cols-[minmax(220px,1fr)_80px_minmax(220px,1fr)]"
-              style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
-              <div className={card}>
-                <h2 className="text-lg font-semibold">⚡ When…</h2>
-                <p className="my-3 text-sm text-[#535d6c]">A trigger is the event that starts your sequence.</p>
-                {selected.map((campaign) => (
-                  <button key={campaign.id} onClick={openTriggers}
-                    className="mb-2 block w-full rounded-lg border border-[#a8ddc1] bg-[#eefaf3] p-2 text-left text-sm">{campaign.name}</button>
-                ))}
-                <button className="w-full rounded-lg border border-dashed border-[#0069dc] p-3 text-sm font-semibold text-[#0069dc]"
-                  onClick={openTriggers}>+ New Trigger</button>
-                <p className="mt-3 text-right text-xs text-[#535d6c]">Then</p>
-              </div>
-              <div aria-hidden="true" className="hidden pt-16 md:block">
-                <div className="relative border-t border-[#8794a5]"><span className="absolute -right-1 -top-2 text-xs text-[#8794a5]">▶</span></div>
-              </div>
-              <div className="space-y-2">
-                {messages.map((step, position) => (
-                  <div key={position}>
-                    {position > 0 && <div aria-hidden="true" className="mx-auto h-7 w-px bg-[#8794a5]" />}
-                    <button className={card + (position === index ? " border-green-500 ring-1 ring-green-500" : " hover:border-green-500")}
-                      aria-pressed={position === index}
-                      onClick={() => { setIndex(position); setPanel("message"); }}>
-                      <span className="text-xs text-[#535d6c]">Instagram</span>
-                      <span className="block text-lg font-semibold">Send Message{position ? ` #${position + 1}` : ""}</span>
-                      <span className="mt-3 block whitespace-pre-wrap break-words rounded-lg border border-dashed border-[#dce0e5] p-3 text-sm text-[#535d6c]">
-                        {step.message || "Add a text"}</span>
-                    </button>
+            <div className="overflow-auto" aria-label="Sequence canvas">
+              <div style={{ width: canvasWidth * zoom, height: canvasHeight * zoom }}>
+                <div className="relative" style={{ width: canvasWidth, height: canvasHeight, transform: `scale(${zoom})`, transformOrigin: "top left" }}>
+                  <svg className="pointer-events-none absolute inset-0" width={canvasWidth} height={canvasHeight} aria-hidden="true">
+                    <defs><marker id={marker} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                      <path d="M0 0 L8 4 L0 8 Z" fill="#8794a5" />
+                    </marker></defs>
+                    {positions.map(({ x, y }, index) => {
+                      const previous = positions[index - 1];
+                      const startX = previous ? previous.x + 265 : 275;
+                      const startY = previous ? previous.y + 70 : 110;
+                      return <path key={index} d={`M${startX},${startY} C${startX + 85},${startY} ${x - 85},${y + 52} ${x},${y + 52}`}
+                        stroke="#8794a5" strokeWidth="2" fill="none" markerEnd={`url(#${marker})`} />;
+                    })}
+                  </svg>
+                  <div className={card + " absolute left-4 top-10 max-w-[260px]"}>
+                    <h2 className="text-lg font-semibold">⚡ When…</h2>
+                    {selected.map((campaign) => <button key={campaign.id} onClick={openTriggers}
+                      className="mt-2 block w-full rounded-lg border border-[#a8ddc1] bg-[#eefaf3] p-2 text-left text-sm">{campaign.name}</button>)}
+                    <button className="mt-3 w-full rounded-lg border border-dashed border-[#0069dc] p-3 text-sm font-semibold text-[#0069dc]"
+                      onClick={openTriggers}>+ New Trigger</button>
                   </div>
-                ))}
-                {editable && <button className={control + " mt-2"} onClick={addMessage}>+ Next Step</button>}
+                  {messages.map((step, position) => (
+                    <div key={position} className={card + " absolute max-w-[265px] !p-0" + (position === index ? " ring-1 ring-green-500" : "")}
+                      style={{ left: positions[position].x, top: positions[position].y }}>
+                      {editable && <button type="button" aria-label={`Move message ${position + 1}`}
+                        className="block w-full touch-none cursor-grab rounded-t-2xl bg-[#f6f0f8] px-4 py-2 text-left text-xs active:cursor-grabbing"
+                        onPointerDown={(event) => beginDrag(event, position)} onPointerMove={moveCard}
+                        onPointerUp={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}>
+                        ⠿ Instagram
+                      </button>}
+                      <button className="block w-full p-4 text-left" aria-pressed={position === index}
+                        onClick={() => { setIndex(position); setPanel("message"); }}>
+                        <span className="block font-semibold">Send Message{position ? ` #${position + 1}` : ""}</span>
+                        <span className="mt-2 line-clamp-2 break-words rounded bg-[#f3f4f6] p-2 text-sm">{step.message || "Add a text"}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="mt-auto flex justify-end gap-2 pt-10">
+              {editable && <button className={control} onClick={() => setMessages((items) =>
+                items.map(({ message, delayMinutes }) => ({ message, delayMinutes }))
+              )}>Auto Arrange Steps</button>}
               <button className={control} aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.65, value - 0.1))}>−</button>
               <button className={control} aria-label="Reset zoom" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
               <button className={control} aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(1.25, value + 0.1))}>+</button>

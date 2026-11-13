@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         where: {
           sequenceId: saved.id,
           status: { in: ["PENDING", "SENDING"] },
-          ...(enabled ? { automationId: { notIn: campaignIds } } : {}),
+          ...(enabled ? { automationId: { not: null, notIn: campaignIds } } : {}),
         },
         data: { status: "CANCELLED", reason: enabled ? "Campaign detached" : "Sequence disabled" },
       });

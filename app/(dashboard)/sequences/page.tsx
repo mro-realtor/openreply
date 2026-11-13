@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import SequenceFlowBuilder from "@/components/sequence-flow-builder";
 
-type Step = { delayMinutes: number; message: string };
+type Step = { position?: { x: number; y: number }; delayMinutes: number; message: string };
 type Enrollment = {
   id: string;
   recipientName: string | null;
@@ -12,7 +12,7 @@ type Enrollment = {
   nextStep: number;
   reason: string | null;
   dueAt: string;
-  automation: { name: string };
+  automation: { name: string } | null;
 };
 type Sequence = {
   id: string;
@@ -326,7 +326,7 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
         {sequence.enrollments.map((entry) => (
           <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eceef1] pt-3 text-sm">
             <div>
-              <p>{entry.recipientName || "Instagram contact"} · {entry.automation.name}</p>
+              <p>{entry.recipientName || "Instagram contact"} · {entry.automation?.name ?? "Inbox subscription"}</p>
               <p className="text-[#535d6c]">{entry.status.toLowerCase()} · {entry.nextStep} sent
                 {entry.status === "PENDING" && ` · Next at ${new Date(entry.dueAt).toLocaleString()}`}
                 {entry.reason && ` · ${entry.reason}`}</p>

@@ -36,6 +36,9 @@ function formatTime(iso: string | null): string {
 }
 
 export default function InboxPage() {
+  const [enrollmentChoices, setEnrollmentChoices] = useState<{ id: string; name: string }[] | null>(null);
+  const [enrollmentNotice, setEnrollmentNotice] = useState("");
+  const [enrolling, setEnrolling] = useState(false);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   // Seed from the last-used account so a revisit can paint the cached
   // conversation list immediately, before the account list even loads.
@@ -195,12 +198,46 @@ export default function InboxPage() {
 
   function openConversation(id: string) {
     setActiveId(id);
+    setEnrollmentChoices(null);
+    setEnrollmentNotice("");
     setSendError(null);
     // Paint any cached thread synchronously so the pane never flashes empty
     // or shows the previously open conversation while the fetch runs.
     const cached = readCache<ThreadMessage[]>(msgCacheKey(id), CACHE_MAX_AGE_MS);
     setMessages(cached.data ?? []);
     setThreadLoading(!cached.data);
+  }
+
+  async function openSequencePicker() {
+    setEnrollmentNotice("");
+    try {
+      const response = await fetch("/api/sequences");
+      const data = await response.json();
+      if (!response.ok || !data.editable) throw new Error("Workspace administrator required");
+      setEnrollmentChoices(data.sequences.filter((sequence: { enabled: boolean }) => sequence.enabled));
+    } catch (error) {
+      setEnrollmentNotice(error instanceof Error ? error.message : "Could not load sequences");
+    }
+  }
+
+  async function subscribeToSequence(sequenceId: string) {
+    if (!active?.contact.id || enrolling) return;
+    setEnrolling(true);
+    try {
+      const response = await fetch("/api/sequences/enrollment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sequenceId, accountId: selectedAccountId, conversationId: active.id, recipientId: active.contact.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setEnrollmentChoices(null);
+      setEnrollmentNotice("Contact subscribed.");
+    } catch (error) {
+      setEnrollmentNotice(error instanceof Error ? error.message : "Could not subscribe");
+    } finally {
+      setEnrolling(false);
+    }
   }
 
   async function handleSend() {
@@ -344,7 +381,25 @@ export default function InboxPage() {
                 <span className="truncate">
                   @{active.contact.username ?? "unknown"}
                 </span>
+                <button type="button" className="ml-auto rounded border border-border px-2 py-1 text-xs"
+                  onClick={() => enrollmentChoices ? setEnrollmentChoices(null) : void openSequencePicker()}>
+                  Subscribe to Sequence
+                </button>
               </div>
+
+              {enrollmentChoices && (
+                <div className="border-b border-border p-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    Choose a sequence
+                    <select className="rounded border border-border bg-surface p-1" value="" disabled={enrolling}
+                      onChange={(event) => { if (event.target.value) void subscribeToSequence(event.target.value); }}>
+                      <option value="">{enrollmentChoices.length ? "Select to subscribe" : "No active sequences"}</option>
+                      {enrollmentChoices.map((sequence) => <option key={sequence.id} value={sequence.id}>{sequence.name}</option>)}
+                    </select>
+                  </label>
+                </div>
+              )}
+              {enrollmentNotice && <p role="status" className="px-3 py-2 text-sm">{enrollmentNotice}</p>}
 
               <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {threadLoading && messages.length === 0 ? (
