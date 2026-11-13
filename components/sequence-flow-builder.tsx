@@ -50,7 +50,7 @@ export default function SequenceFlowBuilder({
     setPanel("message");
   }
   const [ids, setIds] = useState(assignedIds);
-  const [panel, setPanel] = useState<"triggers" | "message" | "preview">("message");
+  const [panel, setPanel] = useState<"triggers" | "message" | "preview" | undefined>("message");
   const [basic, setBasic] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [search, setSearch] = useState("");
