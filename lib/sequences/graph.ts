@@ -1,6 +1,7 @@
 export type SequenceGraphNode = {
   id?: string;
   routes?: Record<string, string | null>;
+  [key: string]: unknown;
 };
 
 export function validateSequenceGraph(
@@ -63,4 +64,17 @@ export function resolveSequenceRoute(
   const targetIndex = steps.findIndex((step) => step.id === targetId);
   if (targetIndex < 0) throw new Error(`Sequence route target does not exist: ${targetId}.`);
   return targetIndex;
+}
+
+export function normalizeSequenceGraph<T extends SequenceGraphNode>(
+  steps: readonly T[],
+  createId: () => string = () => globalThis.crypto.randomUUID(),
+): Array<T & { id: string; routes: Record<string, string | null> }> {
+  const withIds = steps.map((step) => ({ ...step, id: step.id ?? createId() }));
+  const normalized = withIds.map((step, index) => ({
+    ...step,
+    routes: step.routes ?? { next: withIds[index + 1]?.id ?? null },
+  }));
+  validateSequenceGraph(normalized);
+  return normalized;
 }
