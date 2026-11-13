@@ -78,3 +78,19 @@ export function normalizeSequenceGraph<T extends SequenceGraphNode>(
   validateSequenceGraph(normalized);
   return normalized;
 }
+
+export function traceSequencePath(
+  steps: readonly SequenceGraphNode[],
+  startIndex = 0,
+  output = "next",
+): number[] {
+  const path: number[] = [];
+  const visited = new Set<number>();
+  let current: number | null = startIndex;
+  while (current !== null && current >= 0 && current < steps.length && !visited.has(current)) {
+    path.push(current);
+    visited.add(current);
+    current = resolveSequenceRoute(steps, current, output);
+  }
+  return path;
+}
