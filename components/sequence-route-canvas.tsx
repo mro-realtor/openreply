@@ -11,6 +11,7 @@ type Step = {
   id?: string;
   routes?: Record<string, string | null>;
   buttons?: { title: string; url: string }[];
+  quickReplies?: { id: string; title: string }[];
   position?: { x: number; y: number };
   delayMinutes: number;
   message: string;
@@ -175,23 +176,29 @@ export default function SequenceRouteCanvas({
                 d={`M275,110 C330,110 310,${positions[0]?.y ?? 110} ${positions[0]?.x ?? 365},${(positions[0]?.y ?? 58) + 52}`}
                 stroke="#8794a5" strokeWidth="2" fill="none" markerEnd="url(#sequence-route-arrow)" pointerEvents="none"
               />
-              {steps.map((step, index) => {
-                const targetIndex = resolveSequenceRoute(steps, index, "next");
-                if (targetIndex === null) return null;
-                const source = positions[index];
-                const target = positions[targetIndex];
-                const selected = selectedConnection === index;
-                const startX = source.x + 265;
-                const startY = source.y + 70;
-                return (
-                  <path key={step.id ?? index}
-                    d={`M${startX},${startY} C${startX + 85},${startY} ${target.x - 85},${target.y + 52} ${target.x},${target.y + 52}`}
-                    stroke={selected ? "#0069dc" : "#8794a5"} strokeWidth={selected ? 3 : 2} fill="none"
-                    markerEnd="url(#sequence-route-arrow)" pointerEvents="stroke" className="cursor-pointer"
-                    aria-label={`Next Step from message ${index + 1} to message ${targetIndex + 1}`}
-                    onClick={(event) => { event.stopPropagation(); setSelectedConnection(index); onSelectStep(index); }}
-                  />
-                );
+              {steps.flatMap((step, index) => {
+                const outputs = step.quickReplies?.length
+                  ? step.quickReplies.map((reply) => ({ output: `quickReply:${reply.id}`, label: reply.title }))
+                  : [{ output: "next", label: "Next Step" }];
+                return outputs.flatMap(({ output, label }, outputIndex) => {
+                  const targetIndex = resolveSequenceRoute(steps, index, output);
+                  if (targetIndex === null) return [];
+                  const source = positions[index];
+                  const target = positions[targetIndex];
+                  const selected = selectedConnection === index;
+                  const startX = source.x + 265;
+                  const startY = source.y + (step.quickReplies?.length ? 45 + outputIndex * (80 / Math.max(1, outputs.length - 1)) : 70);
+                  return [<g key={`${step.id ?? index}-${output}`}>
+                    <path
+                      d={`M${startX},${startY} C${startX + 85},${startY} ${target.x - 85},${target.y + 52} ${target.x},${target.y + 52}`}
+                      stroke={selected ? "#0069dc" : "#8794a5"} strokeWidth={selected ? 3 : 2} fill="none"
+                      markerEnd="url(#sequence-route-arrow)" pointerEvents="stroke" className="cursor-pointer"
+                      aria-label={`${label} from message ${index + 1} to message ${targetIndex + 1}`}
+                      onClick={(event) => { event.stopPropagation(); setSelectedConnection(index); onSelectStep(index); }}
+                    />
+                    {step.quickReplies?.length ? <text x={startX + 8} y={startY - 5} fill="#535d6c" fontSize="11">{label}</text> : null}
+                  </g>];
+                });
               })}
             </svg>
             <div className={card + " absolute left-4 top-10 max-w-[260px]"}>
@@ -216,6 +223,8 @@ export default function SequenceRouteCanvas({
                   onClick={() => onSelectStep(index)}>
                   <span className="block font-semibold">Send Message{index ? ` #${index + 1}` : ""}</span>
                   <span className="mt-2 line-clamp-2 break-words rounded bg-[#f3f4f6] p-2 text-sm">{step.message || "Add a text"}</span>
+                  {step.quickReplies?.map((reply) => <span key={reply.id}
+                    className="mt-1 block rounded bg-[#eef4ff] p-2 text-center text-xs text-[#0069dc]">{reply.title || "Quick reply"}</span>)}
                   {step.buttons?.map((button, buttonIndex) => <span key={buttonIndex}
                     className="mt-1 block rounded bg-[#f3f4f6] p-2 text-center text-xs text-[#0069dc]">{button.title || "Website button"}</span>)}
                 </button>

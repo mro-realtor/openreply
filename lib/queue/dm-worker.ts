@@ -32,7 +32,7 @@ import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
 } from "@/lib/billing/usage";
-import { cancelOnReply, enrollInSequence } from "@/lib/sequences/delivery";
+import { cancelOnReply, enrollInSequence, routeSequenceQuickReply } from "@/lib/sequences/delivery";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import {
   buildTrackedUrl,
@@ -940,7 +940,12 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
  * Dedup is per inbound message id, so each message triggers at most one reply.
  */
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
-  const { instagramAccountId, messageId, messageText, senderId, interactionAt } = job.data;
+  const { instagramAccountId, messageId, messageText, senderId, interactionAt, quickReplyPayload } = job.data;
+  if (quickReplyPayload) {
+    const routed = await routeSequenceQuickReply(instagramAccountId, senderId, quickReplyPayload, interactionAt ?? 0);
+    if (routed.length) await cancelOnReply(instagramAccountId, senderId, interactionAt, routed);
+    return;
+  }
   await cancelOnReply(instagramAccountId, senderId, interactionAt);
 
   const automations = await prisma.automation.findMany({

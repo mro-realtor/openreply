@@ -211,14 +211,15 @@ export function parseMessageEvents(
       const senderId = messaging.sender?.id;
       const accountId = entry.id ?? messaging.recipient?.id;
 
-      if (!text || !messageId || !senderId || !accountId) continue;
+      const quickReplyPayload = message.quick_reply?.payload;
+      if ((!text && !quickReplyPayload) || !messageId || !senderId || !accountId) continue;
       // Ignore anything the connected account sent to itself.
       if (senderId === accountId) continue;
 
       events.push({
         instagramAccountId: accountId,
         messageId,
-        messageText: text,
+        messageText: text ?? "",
         senderId,
         interactionAt: messaging.timestamp,
         ...(message.quick_reply?.payload ? { quickReplyPayload: message.quick_reply.payload } : {}),

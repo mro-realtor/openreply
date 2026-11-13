@@ -244,6 +244,7 @@ model Sequence {
 
 enum SequenceStatus {
   PENDING
+  WAITING
   SENDING
   COMPLETED
   CANCELLED

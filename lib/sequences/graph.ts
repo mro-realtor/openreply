@@ -1,13 +1,13 @@
 export type SequenceGraphNode = {
   id?: string;
   routes?: Record<string, string | null>;
+  quickReplies?: Array<{ id: string; title: string }>;
   delayMinutes?: number;
   [key: string]: unknown;
 };
 
 export function validateSequenceGraph(
   steps: readonly SequenceGraphNode[],
-  allowedOutputs: readonly string[] = ["next"],
 ): void {
   const hasGraphMetadata = steps.some((step) => step.id !== undefined || step.routes !== undefined);
   if (!hasGraphMetadata) return;
@@ -20,7 +20,17 @@ export function validateSequenceGraph(
   });
 
   steps.forEach((step) => {
+    if (step.quickReplies) {
+      const ids = new Set<string>();
+      for (const reply of step.quickReplies) {
+        if (!reply.id?.trim() || ids.has(reply.id)) throw new Error("Quick reply IDs must be nonempty and unique.");
+        ids.add(reply.id);
+      }
+    }
     if (step.routes === undefined) return;
+    const allowedOutputs = step.quickReplies?.length
+      ? step.quickReplies.map((reply) => `quickReply:${reply.id}`)
+      : ["next"];
     for (const [output, targetId] of Object.entries(step.routes)) {
       if (!allowedOutputs.includes(output)) throw new Error(`Unsupported sequence output: ${output}.`);
       if (targetId !== null && !indexes.has(targetId)) {
@@ -60,6 +70,7 @@ export function resolveSequenceRoute(
     return currentIndex + 1 < steps.length ? currentIndex + 1 : null;
   }
 
+  if (current.quickReplies?.length && !current.routes[output]) return null;
   const targetId = current.routes[output];
   if (typeof targetId !== "string") return null;
   const targetIndex = steps.findIndex((step) => step.id === targetId);
@@ -74,7 +85,9 @@ export function normalizeSequenceGraph<T extends SequenceGraphNode>(
   const withIds = steps.map((step) => ({ ...step, id: step.id ?? createId() }));
   const normalized = withIds.map((step, index) => ({
     ...step,
-    routes: step.routes ?? { next: withIds[index + 1]?.id ?? null },
+    routes: step.routes ?? (step.quickReplies?.length
+      ? Object.fromEntries(step.quickReplies.map((reply) => [`quickReply:${reply.id}`, null]))
+      : { next: withIds[index + 1]?.id ?? null }),
   }));
   validateSequenceGraph(normalized);
   return normalized;
