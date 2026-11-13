@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { validateSequenceGraph } from "./graph";
+import { maxSequencePathDelay, validateSequenceGraph } from "./graph";
 
 const WINDOW_MINUTES = 24 * 60;
 
@@ -31,7 +31,7 @@ export const sequenceSteps = z.array(sequenceStep).min(1).superRefine((steps, co
     });
   }
 }).refine(
-  (steps) => steps.reduce((total, step) => total + step.delayMinutes, 0) < WINDOW_MINUTES,
+  (steps) => maxSequencePathDelay(steps) < WINDOW_MINUTES,
   "Total delay must be under 24 hours.",
 );
 
