@@ -62,6 +62,23 @@ describe("sequence delivery", () => {
     }));
   });
 
+  it("follows a saved route to a non-adjacent message and schedules its delay", async () => {
+    const entry = await enrollment.findUnique();
+    enrollment.findUnique.mockResolvedValue({
+      ...entry,
+      steps: [
+        { id: "start", routes: { next: "finish" }, message: "Start", delayMinutes: 0 },
+        { id: "skipped", routes: { next: null }, message: "Skip", delayMinutes: 1 },
+        { id: "finish", routes: { next: null }, message: "Finish", delayMinutes: 7 },
+      ],
+    });
+    await deliverDueSequenceSteps();
+    expect(send).toHaveBeenCalledWith("token", "ig", "contact", "Start");
+    expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "PENDING", nextStep: 2, dueAt: expect.any(Date) }),
+    }));
+  });
+
   it("delivers an Inbox subscription without a campaign", async () => {
     const entry = await enrollment.findUnique();
     enrollment.findUnique.mockResolvedValue({ ...entry, automation: null });
