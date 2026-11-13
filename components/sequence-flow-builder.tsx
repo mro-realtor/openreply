@@ -52,7 +52,6 @@ export default function SequenceFlowBuilder({
   function addMessage() {
     setMessages((current) => [...current, { id: globalThis.crypto.randomUUID(), message: "", delayMinutes: 0 }]);
     setIndex(messages.length);
-    setAddMenu(false);
     setPanel("message");
   }
   const [ids, setIds] = useState(assignedIds);
