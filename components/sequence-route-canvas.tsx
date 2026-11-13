@@ -102,7 +102,7 @@ export default function SequenceRouteCanvas({
   }
 
   function beginPan(event: PointerEvent<HTMLDivElement>) {
-    if (event.target !== event.currentTarget || (event.button !== 1 && !(event.button === 0 && event.shiftKey))) return;
+    if (event.button !== 1 && !(event.button === 0 && event.shiftKey)) return;
     const viewport = event.currentTarget.parentElement;
     if (!viewport) return;
     event.currentTarget.setPointerCapture(event.pointerId);
