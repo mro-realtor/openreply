@@ -58,7 +58,7 @@ describe("sequence delivery", () => {
     await deliverDueSequenceSteps();
     expect(send).toHaveBeenCalledWith("token", "ig", "contact", "First");
     expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "PENDING", nextStep: { increment: 1 } }),
+      data: expect.objectContaining({ status: "PENDING", nextStep: 1 }),
     }));
   });
 
