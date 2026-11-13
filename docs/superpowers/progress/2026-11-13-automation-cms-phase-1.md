@@ -7,7 +7,7 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Repository: `mro-realtor/openreply`
 - Branch: `codex/sequence-quick-reply-routing`
 - Base PR branch head restored from GitHub: `e54df45a2ce3783b792f365a758b4d323d748727` (PR #21 remains open/draft).
-- Phase 1 changes are local to this checkout and not yet committed or pushed. No migration, merge, live provider send, or deployment was performed.
+- Phase 1 code is committed locally at `a9169bd` (`feat: add ManyChat-style automation CMS shell`). This checkpoint has not yet been pushed. No migration, merge, live provider send, or deployment was performed.
 - This checkout was cloned into the writable project root as `openreply/`; the sibling `mro-crm/` repository and `sources/` mirror were left untouched.
 
 ## Completed this continuation
@@ -41,7 +41,7 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Re-run the full test suite and webpack production build after the final code edits.
 - Complete authenticated desktop/mobile visual verification of the library, chooser, Basic tab, filters, and existing sequence route.
 - The Node-only Vitest configuration does not cover dialog focus, routing clicks, or responsive drawer behavior.
-- Review final diff and update this document/checklist with the new local commit SHA.
+- Push the reviewed checkpoint to the existing draft PR branch to obtain CI/preview, then visually verify the authenticated UI before deciding whether any deployment is appropriate.
 - Continue full ManyChat parity after the CMS milestone: reusable trigger model, account-level working defaults, message/action variants, graph conditions/random splits/timeouts/fallbacks, published revisions, broader Inbox/contact/broadcast/settings/channel support.
 
 ## Next action
