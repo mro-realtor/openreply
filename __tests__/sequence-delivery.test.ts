@@ -58,7 +58,33 @@ describe("sequence delivery", () => {
     await deliverDueSequenceSteps();
     expect(send).toHaveBeenCalledWith("token", "ig", "contact", "First");
     expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "PENDING", nextStep: { increment: 1 } }),
+      data: expect.objectContaining({ status: "PENDING", nextStep: 1 }),
+    }));
+  });
+
+  it("follows a saved route to a non-adjacent message on the next worker pass", async () => {
+    const entry = await enrollment.findUnique();
+    const routedSteps = [
+      { id: "start", routes: { next: "finish" }, message: "Start", delayMinutes: 0 },
+      { id: "skipped", routes: { next: null }, message: "Skip", delayMinutes: 1 },
+      { id: "finish", routes: { next: null }, message: "Finish", delayMinutes: 7 },
+    ];
+    enrollment.findUnique.mockResolvedValue({ ...entry, steps: routedSteps });
+
+    await deliverDueSequenceSteps();
+    expect(send).toHaveBeenCalledWith("token", "ig", "contact", "Start");
+    expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "PENDING", nextStep: 2, dueAt: expect.any(Date) }),
+    }));
+
+    send.mockClear();
+    enrollment.findUnique.mockResolvedValue({ ...entry, steps: routedSteps, nextStep: 2 });
+    await deliverDueSequenceSteps();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith("token", "ig", "contact", "Finish");
+    expect(send).not.toHaveBeenCalledWith("token", "ig", "contact", "Skip");
+    expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "COMPLETED" }),
     }));
   });
 

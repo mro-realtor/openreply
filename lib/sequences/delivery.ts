@@ -3,6 +3,7 @@ import { releaseWorkspaceDMReservation, reserveWorkspaceDMSend } from "@/lib/bil
 import { sendDirectMessage, sendDirectMessageWithLinkButton } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { renderMessageWithoutLink } from "@/lib/tracking/message";
+import { resolveSequenceRoute, validateSequenceGraph } from "./graph";
 import { isInstagramWindowOpen, sequenceSteps } from "./rules";
 
 type EnrollmentTarget = {
@@ -80,6 +81,7 @@ async function deliverStep(id: string) {
   }
 
   const steps = sequenceSteps.parse(enrollment.steps);
+  validateSequenceGraph(steps);
   const step = steps[nextStep];
   const account = enrollment.account;
   if (!step || !account.accessToken) {
@@ -134,11 +136,12 @@ async function deliverStep(id: string) {
     return;
   }
 
-  const following = steps[nextStep + 1];
+  const followingIndex = resolveSequenceRoute(steps, nextStep, "next");
+  const following = followingIndex === null ? undefined : steps[followingIndex];
   await prisma.sequenceEnrollment.updateMany({
     where: { id, status: "SENDING", nextStep },
     data: {
-      nextStep: { increment: 1 },
+      nextStep: followingIndex ?? nextStep,
       status: following ? "PENDING" : "COMPLETED",
       dueAt: new Date(Date.now() + (following?.delayMinutes ?? 0) * 60_000),
     },
