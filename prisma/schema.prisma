@@ -81,6 +81,7 @@ model Workspace {
   automations       Automation[]
   sequences         Sequence[]
   messengerPages    MessengerPage[]
+  inboxThreads      InboxThreadState[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
@@ -468,4 +469,29 @@ model MessengerEvent {
 
   @@id([pageId, eventId])
   @@index([pageId, recipientId, receivedAt])
+}
+
+model InboxThreadState {
+  workspaceId String
+  threadKey String
+  closed Boolean @default(false)
+  favorite Boolean @default(false)
+  readThrough String?
+  assigneeId String?
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  notes InboxThreadNote[]
+
+  @@id([workspaceId, threadKey])
+}
+
+model InboxThreadNote {
+  id String @id @default(cuid())
+  workspaceId String
+  threadKey String
+  authorId String
+  body String
+  createdAt DateTime @default(now())
+  thread InboxThreadState @relation(fields: [workspaceId, threadKey], references: [workspaceId, threadKey], onDelete: Cascade)
+
+  @@index([workspaceId, threadKey, createdAt])
 }
