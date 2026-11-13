@@ -141,6 +141,7 @@ export default function InboxPage() {
   const [sendError, setSendError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const optimisticId = useRef(0);
 
   const active = conversations.find((c) => c.id === activeId) ?? null;
 
@@ -330,11 +331,11 @@ export default function InboxPage() {
 
     // Optimistically show the reply immediately, then confirm with the server.
     const optimistic: ThreadMessage = {
-      id: `optimistic-${Date.now()}`,
+      id: `optimistic-${++optimisticId.current}`,
       text,
       fromMe: true,
       fromUsername: null,
-      createdTime: new Date().toISOString(),
+      createdTime: null,
     };
     setMessages((prev) => [...prev, optimistic]);
     setDraft("");
