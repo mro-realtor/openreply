@@ -444,8 +444,6 @@ export default function InboxPage() {
             )}
           </section>
         ) : (
-        {/* Thread. On mobile it is only shown once a conversation is open and
-            fills the pane; on sm+ it always sits beside the list. */}
         <div
           className={`min-h-0 flex-col ${active ? "flex" : "hidden sm:flex"}`}
         >
