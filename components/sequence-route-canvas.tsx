@@ -25,16 +25,21 @@ export default function SequenceRouteCanvas({
   editable,
   onSelectStep,
   onMessagesChange,
+  onAddMessage,
+  onOpenTriggers,
 }: {
   steps: Step[];
   selectedIndex: number;
   editable: boolean;
   onSelectStep: (index: number) => void;
   onMessagesChange: (steps: Step[]) => void;
+  onAddMessage: () => void;
+  onOpenTriggers: () => void;
 }) {
   const [zoom, setZoom] = useState(1);
   const [selectedConnection, setSelectedConnection] = useState<number>();
   const [routeError, setRouteError] = useState("");
+  const [addMenu, setAddMenu] = useState(false);
   const drag = useRef<{ index: number; x: number; y: number; pointerX: number; pointerY: number } | null>(null);
   const routeDrag = useRef<number | null>(null);
   const pan = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
@@ -116,6 +121,25 @@ export default function SequenceRouteCanvas({
   return (
     <div className="relative flex min-w-0 flex-1 flex-col overflow-auto p-5 lg:p-8" aria-label="Sequence canvas">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative">
+          {editable && <button type="button" aria-label="Add step" aria-expanded={addMenu}
+            className="grid size-12 place-items-center rounded-full bg-[#0069dc] text-3xl text-white shadow-md"
+            onClick={() => setAddMenu((open) => !open)}>+</button>}
+          {addMenu && editable && <div aria-label="Add a step" className="absolute left-0 top-14 z-20 max-h-[min(68dvh,620px)] w-[min(360px,75vw)] overflow-y-auto rounded-lg border border-[#dfe1e5] bg-white p-4 shadow-xl">
+            <section className="mb-4"><h2 className="mb-2 text-sm font-semibold">Starting Step</h2>
+              <button className={control + " w-full text-left"} onClick={() => { setAddMenu(false); onOpenTriggers(); }}>Trigger</button>
+            </section>
+            <section><h2 className="mb-2 text-sm font-semibold">Content</h2>
+              <button className={control + " w-full text-left"} onClick={() => { setAddMenu(false); onAddMessage(); }}>Instagram Message</button>
+              <button className={control + " mt-2 w-full text-left"} disabled>Messenger · Unavailable</button>
+            </section>
+            <section className="mt-4"><h2 className="mb-2 text-sm font-semibold">AI</h2><button className={control + " w-full text-left"} disabled>AI Step · Unavailable</button></section>
+            <section className="mt-4"><h2 className="mb-2 text-sm font-semibold">Logic</h2>
+              {["Actions", "Condition", "Randomizer", "Smart Delay"].map((name) =>
+                <button key={name} className={control + " mb-2 w-full text-left"} disabled>{name} · Unavailable</button>)}
+            </section>
+          </div>}
+        </div>
         <p className="mx-auto rounded bg-[#e9edf1] px-3 py-1 text-xs text-[#535d6c]">Select a step to edit</p>
         <label className="flex items-center gap-2 text-xs text-[#535d6c]">
           Select Existing Step
