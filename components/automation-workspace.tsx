@@ -20,7 +20,7 @@ export default function AutomationWorkspace({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="automation-cms space-y-5 [--color-accent:#1682e8] [--color-accent-hover:#086dc9]">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold">My Automations</h2>

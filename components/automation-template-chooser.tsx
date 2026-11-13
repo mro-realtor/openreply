@@ -70,7 +70,7 @@ export default function AutomationTemplateChooser({
             {canStartAutomationFromScratch(channel) ? (
               <Link
                 href="/campaigns/new"
-                className="hidden rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover sm:inline-flex"
+                className="hidden rounded-md border border-[#dce2e8] px-3 py-2 text-sm font-medium hover:bg-[#f5f8fb] sm:inline-flex"
               >
                 + Start From Scratch
               </Link>
@@ -95,7 +95,7 @@ export default function AutomationTemplateChooser({
                 role="tab"
                 aria-selected={channel === item}
                 onClick={() => setChannel(item)}
-                className={`border-b-2 px-1 py-3 text-sm font-medium capitalize ${channel === item ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
+                className={`border-b-2 px-1 py-3 text-sm font-medium capitalize ${channel === item ? "border-[#1682e8] text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
               >
                 {item === "instagram" ? "◎ Instagram" : "◉ Facebook"}
               </button>

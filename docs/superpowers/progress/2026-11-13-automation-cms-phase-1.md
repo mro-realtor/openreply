@@ -6,8 +6,8 @@ Updated: 2026-11-13 (America/Los_Angeles)
 
 - Repository: `mro-realtor/openreply`
 - Branch: `codex/sequence-quick-reply-routing`
-- Base PR branch head restored from GitHub: `e54df45a2ce3783b792f365a758b4d323d748727` (PR #21 remains open/draft).
-- Phase 1 code is committed locally at `a9169bd` (`feat: add ManyChat-style automation CMS shell`). This checkpoint has not yet been pushed. No migration, merge, live provider send, or deployment was performed.
+- Base for the restored branch: `e54df45a2ce3783b792f365a758b4d323d748727` (PR #21 remains open/draft).
+- Phase 1 code is committed and pushed to draft PR #21. Latest branch head is `0bc4e26692b900833e1261daeef75368dd86cbd4` (`docs: checkpoint automation CMS phase 1`), following feature commit `a9169bd`. No migration, merge, live provider send, or production deployment was performed.
 - This checkout was cloned into the writable project root as `openreply/`; the sibling `mro-crm/` repository and `sources/` mirror were left untouched.
 
 ## Completed this continuation
@@ -34,16 +34,23 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - `npm run build -- --webpack`: passed after review fixes; build includes `/automations`, `/automations/basic`, and `/automations/new`.
 - `git diff --check`: passed; only CRLF-normalization warnings on changed route files.
 - Standard Turbopack build stalled on this environment. Webpack build is the supported Next.js 16 alternative and completed.
-- Visual browser verification is still pending. There is no local authenticated session or preview deployment for this checkout; the production browser tab is the older deployed build. Do not claim the new UI was visually verified until preview access is available.
+- Visual browser verification is still pending. A temporary local preview route was added and removed; attached Chrome could not reach the local dev server (`ERR_CONNECTION_TIMED_OUT`). Vercel lookup found no project/deployment for this repository, and production remains the older deployed build. Do not claim the new UI was visually verified until an authenticated preview is available.
+
+## ManyChat recon and CMS visual correction — 2026-11-13
+
+- Re-opened the user’s exact `/cms?path=/&field=modified&order=desc` reference in attached Chrome. The automation library is a dense centered table with Name, Runs, CTR, and Modified columns; compact global icon rail; clear draft/live status; top-right New Automation; search and trigger/state filters; New Folder and Trash controls; and a list/grid toggle.
+- Read-only inspection of New Automation confirmed a centered Templates modal, channel tabs, left goal and trigger filters, search, Recommended and Discover more sections, Quick Automation vs Flow Builder badges, Popular / Upgrade / AI labels, plus Start From Scratch. No template was installed and no reference data was changed.
+- CMS correction now uses a ManyChat-blue accent, a responsive table library with accurate Active/Paused status, run/CTR/modified values, account and trigger context, and preserves edit, activate/pause, duplicate, and delete actions. The cards remain available in grid mode. Folder and Trash remain explicitly disabled because campaign persistence has no folder or recoverable archive model; no fake controls were wired.
+- Verification after this correction: `npm run typecheck` passed; `npm run lint` passed with the same two pre-existing unused imports; `npm test -- --reporter=dot` passed all 167 tests; `npm run build -- --webpack` passed after retrying with authorized workspace build-output access; `git diff --check` passed. Attached Chrome still cannot reach the local server, and no hosted Vercel preview exists, so local visual behavior is not yet browser-verified.
 
 ## Remaining in Phase 1
 
-- Re-run the full test suite and webpack production build after the final code edits.
+- Browser-verify the new table and chooser at desktop/mobile widths using an authenticated PR preview; the local browser cannot reach the local server and repository discovery found no Vercel project.
 - Complete authenticated desktop/mobile visual verification of the library, chooser, Basic tab, filters, and existing sequence route.
 - The Node-only Vitest configuration does not cover dialog focus, routing clicks, or responsive drawer behavior.
-- Push the reviewed checkpoint to the existing draft PR branch to obtain CI/preview, then visually verify the authenticated UI before deciding whether any deployment is appropriate.
+- Add durable folder and recoverable-trash support to the data model/API; current controls are disabled, consistent with their lack of persistence semantics.
 - Continue full ManyChat parity after the CMS milestone: reusable trigger model, account-level working defaults, message/action variants, graph conditions/random splits/timeouts/fallbacks, published revisions, broader Inbox/contact/broadcast/settings/channel support.
 
 ## Next action
 
-Finish Phase 1 verification and checkpoint its commit. Then proceed with a separate reusable-trigger/data-model milestone while preserving stable-ID routes and legacy sequence JSON. A close visual shell does not mean full ManyChat functional parity.
+Finish Phase 1 visual verification when a safe authenticated preview is available, and checkpoint the current visual correction. Then implement durable folders/trash, reusable triggers, account-level supported defaults, full flow builder configuration/actions/logic/revisions, and remaining workspace surfaces while preserving stable-ID routes and legacy sequence JSON. This remains a partial CMS milestone, not full ManyChat parity.

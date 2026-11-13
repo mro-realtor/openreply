@@ -45,6 +45,7 @@ interface Campaign {
   reportShareEnabled: boolean;
   reportUrl: string | null;
   createdAt: string;
+  updatedAt: string;
   _count: { dmLogs: number };
   trackedLinks: Array<{
     id: string;
@@ -328,12 +329,12 @@ export default function CampaignsPage({ workspaceMode = false }: { workspaceMode
           )}
           {workspaceMode && (
             <>
-              <button type="button" disabled title="Folder management is not available yet"
-                className="rounded border border-border px-3 py-2 text-sm font-medium text-muted disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" disabled title="Automation folders are not supported yet"
+                className="rounded border border-dashed border-[#1682e8] px-3 py-2 text-sm font-medium text-[#086dc9] disabled:cursor-not-allowed disabled:opacity-60">
                 + New Folder
               </button>
               <button type="button" disabled title="Deleted automations are not archived yet"
-                className="rounded border border-border px-3 py-2 text-sm font-medium text-muted disabled:cursor-not-allowed disabled:opacity-60">
+                className="rounded border border-transparent px-3 py-2 text-sm font-medium text-muted disabled:cursor-not-allowed disabled:opacity-60">
                 Trash
               </button>
             </>
@@ -427,7 +428,50 @@ export default function CampaignsPage({ workspaceMode = false }: { workspaceMode
         </div>
       )}
 
-      {/* Campaign cards */}
+      {/* Automation CMS rows */}
+      {workspaceMode && viewMode === "list" ? (
+        <div className="overflow-hidden rounded-xl border border-[#e4e7eb] bg-white shadow-sm">
+          <div className="hidden grid-cols-[minmax(260px,1fr)_110px_90px_140px_40px] items-center gap-4 border-b border-[#e9ebee] bg-[#fafbfc] px-5 py-3 text-xs font-medium text-[#697586] sm:grid">
+            <span>Name</span><span className="text-right">Runs</span><span className="text-right">CTR</span><span className="text-right">Modified</span><span />
+          </div>
+          {filtered.map((auto) => (
+            <div key={auto.id}
+              className="grid grid-cols-1 gap-2 border-b border-[#edf0f2] px-5 py-4 last:border-b-0 hover:bg-[#f7faff] sm:grid-cols-[minmax(260px,1fr)_110px_90px_140px_40px] sm:items-center sm:gap-4">
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link href={`/campaigns/${auto.id}`} className="truncate text-sm font-semibold text-[#252b33] hover:text-[#086dc9]">{auto.name}</Link>
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide ${auto.isActive ? "bg-[#e7f6ec] text-[#168341]" : "bg-[#f0f1f3] text-[#697586]"}`}>{auto.isActive ? "Active" : "Paused"}</span>
+                </span>
+                <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#697586]">
+                  <span>@{auto.instagramAccount.username}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{auto.dmTriggerEnabled && hasCommentTrigger(auto) ? "Comments and Instagram DMs" : auto.dmTriggerEnabled ? "Instagram DM" : "Post or Reel comment"}</span>
+                  {auto.keywords.length > 0 && <span className="truncate text-[#086dc9]">{auto.keywords.slice(0, 3).join(", ")}</span>}
+                </span>
+              </span>
+              <span className="flex justify-between text-xs text-[#697586] sm:justify-end"><span className="sm:hidden">Runs</span>{auto._count.dmLogs}</span>
+              <span className="flex justify-between text-xs text-[#697586] sm:justify-end"><span className="sm:hidden">CTR</span>{auto.analytics.sent ? `${auto.analytics.ctr}%` : "n/a"}</span>
+              <span className="flex justify-between text-xs text-[#697586] sm:justify-end"><span className="sm:hidden">Modified</span>{new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(auto.updatedAt))}</span>
+              <div className="relative flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                <button type="button" aria-pressed={auto.isActive} aria-label={`${auto.isActive ? "Pause" : "Activate"} ${auto.name}`} title={auto.isActive ? "Pause automation" : "Activate automation"}
+                  onClick={() => void toggleActive(auto.id, auto.isActive)}
+                  className={`relative h-6 w-11 rounded-full transition-colors ${auto.isActive ? "bg-[#1682e8]" : "bg-[#c8cdd3]"}`}>
+                  <span className={`absolute top-1 size-4 rounded-full bg-white shadow-sm transition-transform ${auto.isActive ? "left-6" : "left-1"}`} />
+                </button>
+                <button type="button" aria-label={`More actions for ${auto.name}`} aria-expanded={menuOpenId === auto.id}
+                  onClick={() => setMenuOpenId((current) => current === auto.id ? null : auto.id)}
+                  className="rounded px-1 text-lg leading-none text-[#697586] hover:bg-[#edf0f2]">⋯</button>
+                {menuOpenId === auto.id && <div className="absolute right-0 top-8 z-20 w-36 overflow-hidden rounded-lg border border-[#e2e6ea] bg-white py-1 shadow-lg">
+                  <button type="button" onClick={() => void duplicateAutomation(auto)} className="block w-full px-3 py-2 text-left text-sm hover:bg-[#f5f7f9]">Duplicate</button>
+                  <button type="button" onClick={() => { setMenuOpenId(null); void deleteAutomation(auto.id); }} className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-[#f5f7f9]">Delete</button>
+                </div>}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && automations.length > 0 && <p className="p-8 text-center text-sm text-muted">No automations match your search.</p>}
+        </div>
+      ) : (
+      /* Campaign cards */
       <div className={viewMode === "grid" ? "grid gap-3 md:grid-cols-2" : "space-y-3"}>
         {filtered.map((auto) => {
           const videoUrl = auto.postId ? videos[auto.postId] : undefined;
@@ -641,6 +685,7 @@ export default function CampaignsPage({ workspaceMode = false }: { workspaceMode
           );
         })}
       </div>
+      )}
 
       {/* Reel lightbox */}
       {playingVideo && (
