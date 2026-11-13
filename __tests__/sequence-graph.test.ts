@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSequenceGraph, resolveSequenceRoute, traceSequencePath, validateSequenceGraph } from "@/lib/sequences/graph";
+import { maxSequencePathDelay, normalizeSequenceGraph, resolveSequenceRoute, traceSequencePath, validateSequenceGraph } from "@/lib/sequences/graph";
+import { sequenceSteps } from "@/lib/sequences/rules";
 
 describe("sequence graph", () => {
   it("keeps legacy steps in array order", () => {
@@ -30,6 +31,20 @@ describe("sequence graph", () => {
 
     normalized[0].routes.next = "step-3";
     expect(traceSequencePath(normalized)).toEqual([0, 2]);
+  });
+
+  it("validates the longest reachable route rather than summing skipped steps", () => {
+    const steps = [
+      { id: "start", routes: { next: "finish" }, message: "Start", delayMinutes: 5 },
+      { id: "skipped", routes: { next: null }, message: "Skip", delayMinutes: 1430 },
+      { id: "finish", routes: { next: null }, message: "Finish", delayMinutes: 5 },
+    ];
+    expect(maxSequencePathDelay(steps)).toBe(10);
+    expect(sequenceSteps.safeParse(steps).success).toBe(true);
+    expect(sequenceSteps.safeParse([
+      { id: "start", routes: { next: "finish" }, message: "Start", delayMinutes: 720 },
+      { id: "finish", routes: { next: null }, message: "Finish", delayMinutes: 720 },
+    ]).success).toBe(false);
   });
 
   it("treats an explicit missing output as the end of that path", () => {
