@@ -210,6 +210,15 @@ describe("sequence delivery", () => {
     }));
   });
 
+  it("expires quick reply waits after the Instagram messaging window closes", async () => {
+    await deliverDueSequenceSteps();
+
+    expect(enrollment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "WAITING", interactionAt: { lt: expect.any(Date) } }),
+      data: { status: "EXPIRED", reason: "Instagram messaging window closed" },
+    }));
+  });
+
   it("marks an ambiguous delivery as failed without advancing", async () => {
     send.mockRejectedValueOnce(new Error("network interrupted"));
     await deliverDueSequenceSteps();
