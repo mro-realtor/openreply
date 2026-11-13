@@ -142,7 +142,7 @@ export default function SequenceRouteCanvas({
           </div>}
         </div>
         <p className="mx-auto rounded bg-[#e9edf1] px-3 py-1 text-xs text-[#535d6c]">Select a step to edit</p>
-        <label className="flex items-center gap-2 text-xs text-[#535d6c]">
+        {!steps[selectedIndex]?.quickReplies?.length && <label className="flex items-center gap-2 text-xs text-[#535d6c]">
           Select Existing Step
           <select className={control} aria-label="Select Existing Step" disabled={!editable}
             value={currentTarget === null ? "" : String(currentTarget)}
@@ -152,8 +152,8 @@ export default function SequenceRouteCanvas({
               <option key={step.id ?? index} value={index}>Send Message{index ? ` #${index + 1}` : ""}</option>
             ))}
           </select>
-        </label>
-        {selectedConnection !== undefined && resolveSequenceRoute(steps, selectedConnection, "next") !== null && editable && (
+        </label>}
+        {selectedConnection !== undefined && !steps[selectedConnection]?.quickReplies?.length && resolveSequenceRoute(steps, selectedConnection, "next") !== null && editable && (
           <button className={control} onClick={() => changeRoute(selectedConnection, null)}>Remove connection</button>
         )}
       </div>
