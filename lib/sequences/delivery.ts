@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { releaseWorkspaceDMReservation, reserveWorkspaceDMSend } from "@/lib/billing/usage";
-import { sendDirectMessage } from "@/lib/meta/client";
+import { sendDirectMessage, sendDirectMessageWithLinkButton } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { renderMessageWithoutLink } from "@/lib/tracking/message";
 import { isInstagramWindowOpen, sequenceSteps } from "./rules";
@@ -122,9 +122,12 @@ async function deliverStep(id: string) {
       return;
     }
 
-    await sendDirectMessage(token, account.instagramId, recipientId,
-      renderMessageWithoutLink({ message: step.message, commenterName: recipientName })
-    );
+    const message = renderMessageWithoutLink({ message: step.message, commenterName: recipientName });
+    if (step.buttons?.length) {
+      await sendDirectMessageWithLinkButton(token, account.instagramId, recipientId, message, step.buttons);
+    } else {
+      await sendDirectMessage(token, account.instagramId, recipientId, message);
+    }
   } catch (error) {
     // A lost response can mean Meta accepted the message. Do not send it twice.
     await finish("FAILED", error instanceof Error ? error.message.slice(0, 300) : "Delivery failed");
