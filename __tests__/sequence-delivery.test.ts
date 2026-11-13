@@ -210,6 +210,23 @@ describe("sequence delivery", () => {
     }));
   });
 
+  it("ignores a quick-reply payload that does not belong to the waiting step", async () => {
+    const routeQuickReply = Reflect.get(
+      await import("@/lib/sequences/delivery"),
+      "routeSequenceQuickReply",
+    ) as (instagramId: string, recipientId: string, payload: string, interactionAt: number) => Promise<string[]>;
+    enrollment.findMany.mockResolvedValue([{
+      id: "entry", sequenceId: "seq", nextStep: 0,
+      steps: [{
+        id: "question", routes: { "quickReply:buy": null },
+        quickReplies: [{ id: "buy", title: "Buy" }], message: "Choose", delayMinutes: 0,
+      }],
+    }]);
+    const routed = await routeQuickReply("ig", "contact", "sequence:other:step:question:reply:buy", Date.now());
+    expect(routed).toEqual([]);
+    expect(enrollment.updateMany).not.toHaveBeenCalled();
+  });
+
   it("expires quick reply waits after the Instagram messaging window closes", async () => {
     await deliverDueSequenceSteps();
 
