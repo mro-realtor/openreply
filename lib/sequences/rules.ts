@@ -12,10 +12,13 @@ export const sequenceSteps = z.array(z.object({
 
 export const sequenceInput = z.object({
   name: z.string().trim().min(1).max(100),
-  steps: sequenceSteps,
+  steps: z.union([sequenceSteps, z.tuple([])]),
   campaignIds: z.array(z.string().min(1)).max(100),
   enabled: z.boolean(),
-}).partial({ campaignIds: true, enabled: true });
+}).partial({ campaignIds: true, enabled: true }).refine(
+  (sequence) => !sequence.enabled || sequence.steps.length > 0,
+  { message: "Add a message before enabling the sequence.", path: ["steps"] }
+);
 
 export function isInstagramWindowOpen(interaction: number | undefined, now: number) {
   return interaction !== undefined &&
