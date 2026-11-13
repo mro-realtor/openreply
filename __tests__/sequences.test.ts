@@ -12,6 +12,11 @@ describe("Instagram sequences", () => {
     expect(isInstagramWindowOpen(interaction, interaction + day)).toBe(false);
   });
 
+  it("can create a named draft, but requires a message to activate it", () => {
+    expect(sequenceInput.safeParse({ name: "IB", steps: [], enabled: false }).success).toBe(true);
+    expect(sequenceInput.safeParse({ name: "IB", steps: [], enabled: true }).success).toBe(false);
+  });
+
   it("rejects blank messages and schedules at or beyond the window", () => {
     const parse = (steps: unknown) => sequenceInput.safeParse({ name: "IB", steps });
     expect(parse([{ message: "Hi", delayMinutes: 60 }]).success).toBe(true);

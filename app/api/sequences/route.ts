@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { canManageWorkspace, getCurrentWorkspaceContext } from "@/lib/workspace-access";
 import { sequenceInput } from "@/lib/sequences/rules";
 
-const saveInput = sequenceInput.extend({ id: z.string().min(1).optional() });
+const saveInput = sequenceInput.safeExtend({ id: z.string().min(1).optional() });
 const cancelInput = z.object({ sequenceId: z.string().min(1), enrollmentId: z.string().min(1) });
 
 export async function GET() {
@@ -17,6 +17,7 @@ export async function GET() {
       where,
       orderBy: { createdAt: "desc" },
       include: {
+        _count: { select: { enrollments: true } },
         enrollments: {
           orderBy: { updatedAt: "desc" },
           take: 20,
