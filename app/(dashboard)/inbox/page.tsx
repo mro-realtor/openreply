@@ -40,7 +40,41 @@ type FacebookThread = { id: string; pageId: string; pageName: string; recipientI
   eventId: string; receivedAt: string; text: string | null; kind: string;
 }[] };
 
+type ThreadState = {
+  threadKey: string; closed: boolean; favorite: boolean; assigneeId: string | null;
+  readThrough: string | null; notes: { id: string; body: string; createdAt: string }[];
+};
+
 export default function InboxPage() {
+  const [inboxState, setInboxState] = useState<Record<string, ThreadState>>({});
+  const [viewer, setViewer] = useState("");
+  const [folder, setFolder] = useState("All chats");
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [note, setNote] = useState("");
+  const [workflowError, setWorkflowError] = useState("");
+  const [mutating, setMutating] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    async function loadState() {
+      try {
+        const response = await fetch("/api/inbox/state", { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const data = await response.json() as { threads: ThreadState[]; userId: string };
+        if (!disposed) {
+          setInboxState(Object.fromEntries(data.threads.map((thread) => [thread.threadKey, thread])));
+          setViewer(data.userId);
+        }
+      } catch {
+        if (!disposed) setWorkflowError("Inbox settings could not be loaded.");
+      }
+    }
+    void loadState();
+    return () => { disposed = true; };
+  }, []);
+
   const [channel, setChannel] = useState("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
@@ -341,16 +375,66 @@ export default function InboxPage() {
     }
   }
 
+  const selectedKey = facebookActive ? `fb:${facebookActive.id}` : active ? `ig:${selectedAccountId}:${active.id}` : "";
+  const currentState = inboxState[selectedKey];
+  const currentDate = facebookActive?.events[0]?.receivedAt ?? active?.updatedTime ?? null;
+
+  function isUnread(key: string, date: string | null) {
+    return Boolean(date && Date.parse(date) > (Date.parse(inboxState[key]?.readThrough ?? "") || 0));
+  }
+
+  async function updateThread(threadKey: string, fields: Record<string, unknown>) {
+    setWorkflowError("");
+    setMutating(true);
+    try {
+      const response = await fetch("/api/inbox/state", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadKey, ...fields }),
+      });
+      if (!response.ok) throw new Error();
+      const saved: ThreadState = await response.json();
+      setInboxState((current) => ({ ...current, [threadKey]: saved }));
+      return true;
+    } catch {
+      setWorkflowError("The conversation change could not be saved.");
+      return false;
+    } finally { setMutating(false); }
+  }
+
+  const actionClass = "rounded border border-border px-2 py-1 text-xs font-medium disabled:opacity-50";
+  const threadActions = selectedKey && (
+    <div className="ml-auto flex flex-wrap gap-2">
+      <button className={actionClass} disabled={mutating} onClick={() => void updateThread(selectedKey, { closed: !currentState?.closed })}>
+        {currentState?.closed ? "Mark as Open" : "Mark as Closed"}
+      </button>
+      <button className={actionClass} disabled={mutating} aria-label={currentState?.favorite ? "Remove from favorites" : "Add to favorites"}
+        onClick={() => void updateThread(selectedKey, { favorite: !currentState?.favorite })}>{currentState?.favorite ? "♥" : "♡"}</button>
+      <button className={actionClass} disabled={mutating || !currentDate} onClick={() =>
+        void updateThread(selectedKey, { readThrough: isUnread(selectedKey, currentDate) ? currentDate : null })}>
+        {isUnread(selectedKey, currentDate) ? "Mark as read" : "Mark as unread"}
+      </button>
+      <button className={actionClass} onClick={() => setShowContact(!showContact)} aria-expanded={showContact}>Contact details</button>
+    </div>
+  );
+
   const threads = [
     ...(channel !== "facebook" ? conversations.map((conversation) => ({
-      id: conversation.id, channel: "Instagram", name: `@${conversation.contact.username ?? "unknown"}`,
+      id: conversation.id, key: `ig:${selectedAccountId}:${conversation.id}`, channel: "Instagram", name: `@${conversation.contact.username ?? "unknown"}`,
       text: conversation.lastMessage?.text, date: conversation.updatedTime,
     })) : []),
     ...(channel !== "instagram" ? facebook.map((thread) => ({
-      id: thread.id, channel: "Facebook", name: `${thread.pageName} · ${thread.recipientId}`,
+      id: thread.id, key: `fb:${thread.id}`, channel: "Facebook", name: `${thread.pageName} · ${thread.recipientId}`,
       text: thread.events[0]?.text, date: thread.events[0]?.receivedAt ?? null,
     })) : []),
-  ].filter((thread) => `${thread.name} ${thread.text ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()))
+  ].filter((thread) => {
+    const state = inboxState[thread.key];
+    if (statusFilter !== "all" && Boolean(state?.closed) !== (statusFilter === "closed")) return false;
+    if (unreadOnly && !isUnread(thread.key, thread.date)) return false;
+    if (folder === "Unassigned" && state?.assigneeId) return false;
+    if (folder === "Assigned to me" && (!viewer || state?.assigneeId !== viewer)) return false;
+    if (folder === "Favorites" && !state?.favorite) return false;
+    return true;
+  }).filter((thread) => `${thread.name} ${thread.text ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((left, right) => (sort === "newest" ? 1 : -1) * ((right.date ?? "").localeCompare(left.date ?? "")));
 
   async function sendFacebookReply() {
@@ -372,6 +456,7 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-3">
+      {workflowError && <p role="alert" className="text-sm text-error">{workflowError}</p>}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Inbox</h1>
         <input type="search" aria-label="Search through Inbox conversations" placeholder="Search through Inbox conversations"
@@ -380,6 +465,12 @@ export default function InboxPage() {
         <Link className="rounded border border-border px-3 py-2 text-sm" href="/messenger">Add Channel</Link>
       </header>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-surface p-2 text-sm">
+        <select aria-label="Chat status" className="rounded border border-border bg-surface p-2" value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="open">Open chats</option><option value="closed">Closed chats</option><option value="all">All statuses</option>
+        </select>
+        <button className="rounded border border-border px-3 py-2 aria-pressed:bg-blue-600 aria-pressed:text-white"
+          aria-pressed={unreadOnly} onClick={() => setUnreadOnly(!unreadOnly)}>Unread</button>
         <select aria-label="Channel" className="rounded border border-border bg-surface p-2" value={channel}
           onChange={(event) => { setChannel(event.target.value); setActiveId(null); setFacebookId(undefined); setDraft(""); }}>
           <option value="all">All channels</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option>
@@ -392,9 +483,15 @@ export default function InboxPage() {
           <AccountSelect accounts={accounts} value={selectedAccountId} onChange={setSelectedAccountId} includeAll={false} />
         )}
       </div>
-      <div className="grid h-[calc(100dvh-13rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[310px_1fr]">
+      <div className="grid h-[calc(100dvh-13rem)] grid-cols-1 overflow-hidden rounded border border-border sm:grid-cols-[275px_minmax(0,1fr)] lg:grid-cols-[175px_290px_minmax(0,1fr)]">
+        <nav aria-label="Inbox folders" className={`flex gap-1 overflow-x-auto border-b border-border bg-surface p-2 sm:col-span-2 lg:col-span-1 lg:flex-col lg:border-b-0 lg:border-r ${selectedKey ? "hidden sm:flex" : ""}`}>
+          {["All chats", "Unassigned", "Assigned to me", "Favorites"].map((name) => (
+            <button key={name} aria-pressed={folder === name} onClick={() => setFolder(name)}
+              className="rounded px-3 py-2 text-left text-sm whitespace-nowrap hover:bg-surface-hover aria-pressed:bg-surface-hover aria-pressed:font-semibold">{name}</button>
+          ))}
+        </nav>
         <div className={`min-h-0 flex-col border-border sm:flex sm:border-r ${active || facebookActive ? "hidden" : "flex"}`}>
-          <div className="border-b border-border px-4 py-3 text-sm font-semibold">All chats</div>
+          <div className="border-b border-border px-4 py-3 text-sm font-semibold">{folder}</div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {channel !== "facebook" && convLoading && accounts.length > 0 && <p className="p-4 text-sm text-muted">Loading Instagram…</p>}
             {channel !== "facebook" && convError && <p className="p-4 text-sm text-error">{convError}</p>}
@@ -405,11 +502,13 @@ export default function InboxPage() {
                 className={`block w-full border-b border-border px-4 py-3 text-left hover:bg-surface-hover ${thread.id === (activeId ?? facebookId) ? "bg-surface-hover" : ""}`}
                 onClick={() => {
                   setDraft("");
+                  setNote("");
+                  if (thread.date && isUnread(thread.key, thread.date) && !mutating) void updateThread(thread.key, { readThrough: thread.date });
                   if (thread.channel === "Instagram") openConversation(thread.id);
                   else { setActiveId(null); setFacebookId(thread.id); setSendError(null); }
                 }}>
                 <span className="flex justify-between gap-2 text-sm font-medium">
-                  <span className="truncate">{thread.name}</span>
+                  <span className="truncate">{isUnread(thread.key, thread.date) && <span aria-label="Unread" className="mr-1 text-blue-600">●</span>}{thread.name}</span>
                   <span className="shrink-0 text-xs text-muted">{formatTime(thread.date)}</span>
                 </span>
                 <span className="block truncate text-xs text-muted">{thread.channel} · {thread.text || "No text"}</span>
@@ -418,11 +517,13 @@ export default function InboxPage() {
           </div>
         </div>
 
+        <div className={`min-h-0 min-w-0 ${showContact && selectedKey ? "grid grid-rows-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_240px] xl:grid-rows-1" : "grid"}`}>
         {facebookActive ? (
           <section className="flex min-h-0 flex-col">
             <header className="flex items-center gap-2 border-b border-border p-4 text-sm font-semibold">
               <button type="button" onClick={() => setFacebookId(undefined)} className="sm:hidden">Back</button>
               <span>Facebook · {facebookActive.pageName}</span>
+              {threadActions}
             </header>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               {[...facebookActive.events].reverse().map((event) => (
@@ -465,6 +566,7 @@ export default function InboxPage() {
                 <span className="truncate">
                   @{active.contact.username ?? "unknown"}
                 </span>
+                {threadActions}
                 <button type="button" className="ml-auto rounded border border-border px-2 py-1 text-xs"
                   onClick={() => enrollmentChoices ? setEnrollmentChoices(null) : void openSequencePicker()}>
                   Subscribe to Sequence
@@ -544,6 +646,28 @@ export default function InboxPage() {
           )}
         </div>
         )}
+        {showContact && selectedKey && (
+          <aside className="max-h-60 space-y-3 overflow-y-auto border-t border-border bg-surface p-3 text-sm xl:max-h-none xl:border-t-0 xl:border-l">
+            <h2 className="font-semibold">Contact details</h2>
+            <p className="break-words">{facebookActive ? facebookActive.pageName : `@${active?.contact.username ?? "unknown"}`}</p>
+            <p>{!currentState?.assigneeId ? "Unassigned" : currentState.assigneeId === viewer ? "Assigned to you" : "Assigned to a teammate"}</p>
+            <button className={actionClass} disabled={mutating || !viewer} onClick={() =>
+              void updateThread(selectedKey, { assignToMe: currentState?.assigneeId !== viewer })}>
+              {currentState?.assigneeId === viewer ? "Unassign" : "Assign to me"}
+            </button>
+            <h3 className="font-semibold">Internal notes</h3>
+            {currentState?.notes.map((entry) => <p key={entry.id} className="whitespace-pre-wrap break-words rounded border border-border p-2">{entry.body}</p>)}
+            <form className="grid gap-2" onSubmit={(event) => {
+              event.preventDefault();
+              void updateThread(selectedKey, { note }).then((saved) => { if (saved) setNote(""); });
+            }}>
+              <textarea aria-label="Internal note" placeholder="Add an internal note…" className="rounded border border-border bg-background p-2" value={note}
+                onChange={(event) => setNote(event.target.value)} maxLength={4000} />
+              <button className={actionClass} disabled={mutating || !note.trim()}>Add note</button>
+            </form>
+          </aside>
+        )}
+        </div>
       </div>
     </div>
   );
