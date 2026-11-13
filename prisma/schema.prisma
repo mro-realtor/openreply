@@ -80,6 +80,7 @@ model Workspace {
   instagramAccounts InstagramAccount[]
   automations       Automation[]
   sequences         Sequence[]
+  messengerPages    MessengerPage[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
   linkClicks        LinkClick[]
@@ -443,4 +444,28 @@ enum OperationalEventLevel {
   INFO
   WARNING
   ERROR
+}
+
+model MessengerPage {
+  id          String @id
+  workspaceId String
+  name        String
+  accessToken String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  events      MessengerEvent[]
+
+  @@index([workspaceId])
+}
+
+model MessengerEvent {
+  pageId      String
+  eventId     String
+  recipientId String
+  receivedAt  DateTime
+  kind        String
+  text        String?
+  page        MessengerPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, eventId])
+  @@index([pageId, recipientId, receivedAt])
 }
