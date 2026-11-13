@@ -44,19 +44,7 @@ export default function SequenceFlowBuilder({
 
 
   const [index, setIndex] = useState(initialIndex);
-  const [addMenu, setAddMenu] = useState(false);
-  const [stepSearch, setStepSearch] = useState("");
   const [moreBlocks, setMoreBlocks] = useState(false);
-  const palette = [
-    { title: "Starting Step", items: [{ name: "Trigger", icon: "▷", action: () => { setAddMenu(false); openTriggers(); } }] },
-    { title: "Content", items: [
-      { name: "Instagram", icon: "◎", action: addMessage }, { name: "Messenger", icon: "◉" },
-      { name: "Channel", icon: "+" }, { name: "Start Automation", icon: "⇥" },
-    ] },
-    { title: "AI", items: [{ name: "AI Step", icon: "✧" }] },
-    { title: "Logic", items: [{ name: "Actions", icon: "⚡" }, { name: "Condition", icon: "◇" },
-      { name: "Randomizer", icon: "⤨" }, { name: "Smart Delay", icon: "◷" }] },
-  ];
   const message = messages[index].message;
   const setMessage = (value: string) => setMessages((current) =>
     current.map((step, position) => position === index ? { ...step, message: value } : step)
@@ -72,7 +60,6 @@ export default function SequenceFlowBuilder({
   const [basic, setBasic] = useState(false);
   const [search, setSearch] = useState("");
   const [trigger, setTrigger] = useState<Trigger>();
-  const selected = campaigns.filter((campaign) => ids.includes(campaign.id));
   const choices = campaigns.filter((campaign) => trigger === "comment" || campaign.dmTriggerEnabled);
 
   const openTriggers = () => {
@@ -245,6 +232,8 @@ export default function SequenceFlowBuilder({
             editable={editable}
             onSelectStep={(selectedIndex) => { setIndex(selectedIndex); setPanel("message"); }}
             onMessagesChange={setMessages}
+            onAddMessage={addMessage}
+            onOpenTriggers={openTriggers}
           />
         )}
       </div>
