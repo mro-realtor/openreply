@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import SequenceFlowBuilder from "@/components/sequence-flow-builder";
+import AutomationTabs from "@/components/automation-tabs";
 
 type Step = { buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; delayMinutes: number; message: string };
 type Enrollment = {
@@ -99,6 +100,7 @@ export default function SequencesPage() {
     <main className="min-h-full bg-[#f4f4f5] text-[#20242a] [color-scheme:light]">
       <div className="border-b border-[#dfe1e5] px-5 py-4 text-xl font-semibold md:px-8">Automation</div>
       <div className="mx-auto max-w-[1260px] px-4 py-7 md:px-8">
+        <AutomationTabs active="sequences" />
         {!creating && error && <p role="alert" className="mb-4 text-sm text-red-700">{error}</p>}
         {!data && !error && <p className="text-sm text-[#535d6c]">Loading sequences…</p>}
         {data && current && (

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import AutomationWorkspace from "@/components/automation-workspace";
 
-export default function NewAutomationRedirectPage() {
-  redirect("/campaigns/new");
+export default function NewAutomationPage() {
+  return <AutomationWorkspace initialChooserOpen />;
 }
