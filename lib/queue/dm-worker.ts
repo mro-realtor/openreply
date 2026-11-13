@@ -32,6 +32,7 @@ import {
   releaseWorkspaceDMReservation,
   reserveWorkspaceDMSend,
 } from "@/lib/billing/usage";
+import { cancelOnReply, enrollInSequence } from "@/lib/sequences/delivery";
 import { recordWorkerAlert } from "@/lib/ops/worker-health";
 import {
   buildTrackedUrl,
@@ -806,7 +807,10 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     // short thank-you. It is scheduled as its own delayed job so it can go out
     // some minutes later (followUpDelayMinutes) rather than immediately. The
     // deterministic job id dedupes repeat button taps to one follow-up per user.
-    if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
+    if (automation.sequenceId && !fallback) {
+      await enrollInSequence(automation, userId, commenterName, job.data.interactionAt)
+        .catch((error) => console.error("[DM Worker] Sequence enrollment failed:", formatError(error)));
+    } else if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
       await getDMQueue().add(
@@ -936,7 +940,8 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
  * Dedup is per inbound message id, so each message triggers at most one reply.
  */
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
-  const { instagramAccountId, messageId, messageText, senderId } = job.data;
+  const { instagramAccountId, messageId, messageText, senderId, interactionAt } = job.data;
+  await cancelOnReply(instagramAccountId, senderId, interactionAt);
 
   const automations = await prisma.automation.findMany({
     where: {
@@ -1112,7 +1117,10 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
         // The link has been delivered, so the appreciation follow-up applies
         // here exactly as it does after a button tap. Not scheduled behind the
         // follow prompt — no link went out yet in that branch.
-        if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
+        if (automation.sequenceId) {
+          await enrollInSequence(automation, senderId, commenterName, interactionAt)
+            .catch((error) => console.error("[DM Worker] Sequence enrollment failed:", formatError(error)));
+        } else if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
           await getDMQueue().add(
             FOLLOWUP_JOB_NAME,
             {

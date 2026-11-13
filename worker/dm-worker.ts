@@ -1,6 +1,7 @@
 import { createDMWorker } from "@/lib/queue/dm-worker";
 import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
 import { reconcileComments } from "@/lib/polling/comment-reconciler";
+import { deliverDueSequenceSteps } from "@/lib/sequences/delivery";
 import os from "node:os";
 
 const worker = createDMWorker();
@@ -43,11 +44,19 @@ async function poll() {
 setTimeout(() => void poll(), 10_000);
 const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 
+let sequenceSweep: Promise<void> | undefined;
+const sequenceTimer = setInterval(() => {
+  sequenceSweep ??= deliverDueSequenceSteps()
+    .catch((error) => console.error("[DM Worker] Sequence sweep failed:", error.message))
+    .finally(() => { sequenceSweep = undefined; });
+}, 10_000);
+
 async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
   clearInterval(heartbeatTimer);
   clearInterval(pollTimer);
-  await worker.close();
+  clearInterval(sequenceTimer);
+  await Promise.all([worker.close(), sequenceSweep]);
   process.exit(0);
 }
 

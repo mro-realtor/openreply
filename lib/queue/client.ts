@@ -42,6 +42,7 @@ export interface ProcessPostbackJob {
   payload: string;
   mid?: string;
   fallback?: boolean;
+  interactionAt?: number;
 }
 
 // Scheduled after the link is delivered, to send the appreciation follow-up.
@@ -61,6 +62,7 @@ export interface ProcessMessageJob {
   messageId: string;
   messageText: string;
   senderId: string;
+  interactionAt?: number;
 }
 
 export type DmQueueJob =
