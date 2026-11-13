@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import type { SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import SequenceFlowBuilder from "@/components/sequence-flow-builder";
 
 type Step = { position?: { x: number; y: number }; delayMinutes: number; message: string };
@@ -199,6 +200,8 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
   const [name, setName] = useState(sequence.name);
   const [enabled, setEnabled] = useState(sequence.enabled);
   const [steps, setSteps] = useState(sequence.steps);
+  const [newTriggers, setNewTriggers] = useState<SavedSequenceTrigger[]>([]);
+  const campaigns = [...data.campaigns, ...newTriggers.filter(trigger => !data.campaigns.some(campaign => campaign.id === trigger.id))];
   const [campaignIds, setCampaignIds] = useState(
     data.campaigns.filter((campaign) => campaign.sequenceId === sequence.id).map((campaign) => campaign.id)
   );
@@ -235,9 +238,14 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
 
   if (edit?.kind === "message") {
     return <SequenceFlowBuilder
+      sequenceId={sequence.id}
+      onTriggerAdded={(trigger) => {
+        setNewTriggers((current) => [...current, trigger]);
+        setCampaignIds((current) => [...current, trigger.id]);
+      }}
       steps={steps}
       initialIndex={edit.index}
-      campaigns={data.campaigns.filter((campaign) => !campaign.sequenceId || campaign.sequenceId === sequence.id)}
+      campaigns={campaigns.filter((campaign) => !campaign.sequenceId || campaign.sequenceId === sequence.id)}
       assignedIds={campaignIds}
       editable={data.editable}
       onBack={() => setEdit(undefined)}
@@ -305,7 +313,7 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
       <details className={panel + " px-5 py-4"}>
         <summary className="cursor-pointer font-semibold">Assigned campaigns ({campaignIds.length})</summary>
         <fieldset disabled={!data.editable || busy} className="mt-3 space-y-2">
-          {data.campaigns.map((campaign) => (
+          {campaigns.map((campaign) => (
             <label key={campaign.id} className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={campaignIds.includes(campaign.id)}
                 disabled={Boolean(campaign.sequenceId && campaign.sequenceId !== sequence.id)}

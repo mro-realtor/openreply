@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import SequenceTriggerForm, { type SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import { useId, useRef, useState, type PointerEvent } from "react";
 
 type Step = { position?: { x: number; y: number }; message: string; delayMinutes: number };
@@ -21,13 +21,15 @@ const card = "w-full rounded-2xl border border-[#e6e8eb] bg-white p-5 text-left 
 const triggerTypes = [
   { id: "comment", name: "Post or Reel Comments", description: "User comments on your Post or Reel" },
   { id: "dm", name: "Instagram Message", description: "User sends a message" },
-  { id: "story", name: "Story Reply", description: "User replies to your Story with a matching message" },
+  { id: "story", name: "Story Reply via DM keyword", description: "User replies to your Story with a matching message" },
 ] as const;
 type Trigger = typeof triggerTypes[number]["id"];
 
 export default function SequenceFlowBuilder({
-  steps, initialIndex, campaigns, assignedIds, editable, onBack, onSave,
+  steps, initialIndex, campaigns, assignedIds, editable, onBack, onSave, sequenceId, onTriggerAdded,
 }: {
+  sequenceId: string;
+  onTriggerAdded: (trigger: SavedSequenceTrigger) => void;
   steps: Step[];
   initialIndex: number;
   campaigns: Campaign[];
@@ -143,7 +145,14 @@ export default function SequenceFlowBuilder({
                   {trigger ? (
                     <>
                       <button className="text-sm text-[#0069dc]" onClick={() => setTrigger(undefined)}>← Instagram triggers</button>
-                      <p className="text-sm">Choose a campaign. Its trigger subscribes contacts to the entire sequence.</p>
+                      {editable && <SequenceTriggerForm key={trigger} sequenceId={sequenceId}
+                        type={trigger === "comment" ? "comment" : "dm"} onAdd={(saved) => {
+                          setIds((current) => [...current, saved.id]);
+                          onTriggerAdded(saved);
+                          setTrigger(undefined);
+                          setPanel(undefined);
+                        }} />}
+                      {choices.length > 0 && <p className="text-sm font-medium">Use an existing campaign</p>}
                       {choices.map((campaign) => (
                         <label key={campaign.id} className="flex items-start gap-2 rounded-lg border border-[#e0e4e8] p-3 text-sm">
                           <input type="checkbox" disabled={!editable} checked={ids.includes(campaign.id)}
@@ -156,7 +165,7 @@ export default function SequenceFlowBuilder({
                           </span>
                         </label>
                       ))}
-                      <Link href="/campaigns/new" className="text-sm font-semibold text-[#0069dc]">Create campaign</Link>
+
                     </>
                   ) : (
                     <>
