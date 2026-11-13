@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { enrollment, send, usage } = vi.hoisted(() => ({
+const { enrollment, send, sendQuickReply, usage } = vi.hoisted(() => ({
   enrollment: {
     createMany: vi.fn(),
     updateMany: vi.fn(),
@@ -91,7 +91,7 @@ describe("sequence delivery", () => {
   });
 
   it("validates and resolves quick-reply output routes", () => {
-    const steps = [
+    const steps: Array<{ id: string; routes: Record<string, string | null>; quickReplies?: Array<{ id: string; title: string }> }> = [
       {
         id: "question",
         quickReplies: [{ id: "buy", title: "Buy" }, { id: "rent", title: "Rent" }],
