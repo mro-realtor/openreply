@@ -31,7 +31,7 @@ export async function GET() {
     prisma.automation.findMany({
       where,
       orderBy: { name: "asc" },
-      select: { id: true, name: true, sequenceId: true, isActive: true },
+      select: { id: true, name: true, sequenceId: true, isActive: true, dmTriggerEnabled: true, keywords: true, matchAnyWord: true },
     }),
   ]);
 

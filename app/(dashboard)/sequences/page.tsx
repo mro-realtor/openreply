@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import SequenceFlowBuilder from "@/components/sequence-flow-builder";
 
 type Step = { delayMinutes: number; message: string };
 type Enrollment = {
@@ -21,7 +22,7 @@ type Sequence = {
   enrollments: Enrollment[];
   _count: { enrollments: number };
 };
-type Campaign = { id: string; name: string; sequenceId: string | null; isActive: boolean };
+type Campaign = { id: string; name: string; sequenceId: string | null; isActive: boolean; dmTriggerEnabled: boolean; keywords: string[]; matchAnyWord: boolean };
 type SequenceData = { sequences: Sequence[]; campaigns: Campaign[]; editable: boolean };
 
 const button = "rounded-md border border-[#d8dde5] bg-white px-3 py-2 text-sm font-semibold hover:bg-[#f6f8fa] disabled:opacity-50";
@@ -202,7 +203,6 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
     data.campaigns.filter((campaign) => campaign.sequenceId === sequence.id).map((campaign) => campaign.id)
   );
   const [edit, setEdit] = useState<{ index: number; kind: "schedule" | "message" }>();
-  const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -231,6 +231,23 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (edit?.kind === "message") {
+    return <SequenceFlowBuilder
+      steps={steps}
+      initialIndex={edit.index}
+      campaigns={data.campaigns.filter((campaign) => !campaign.sequenceId || campaign.sequenceId === sequence.id)}
+      assignedIds={campaignIds}
+      editable={data.editable}
+      onBack={() => setEdit(undefined)}
+      onSave={(messages, ids) => {
+        setCampaignIds(ids);
+        setSteps(messages);
+        setNotice("");
+        setEdit(undefined);
+      }}
+    />;
   }
 
   return (
@@ -268,8 +285,8 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
                     aria-label={`Schedule message ${index + 1}: ${delayLabel(step.delayMinutes)}`}
                     onClick={() => setEdit({ index, kind: "schedule" })}>{delayLabel(step.delayMinutes)} ⌄</button></td>
                   <td><button className="max-w-lg truncate text-left font-semibold text-[#0061cb] hover:underline"
-                    disabled={!data.editable || busy}
-                    onClick={() => { setMessage(step.message); setEdit({ index, kind: "message" }); }}>
+                    disabled={busy}
+                    onClick={() => setEdit({ index, kind: "message" })}>
                     {step.message || "Create New Reply"}</button></td>
                   <td><button className={button} disabled={!data.editable || busy}
                     aria-label={`Remove message ${index + 1}`}
@@ -279,7 +296,7 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
             </tbody>
           </table>
         ) : <p className="px-5 pt-5 text-sm text-[#535d6c]">You have no messages.</p>}
-        {data.editable && <div className="p-5"><button className={button} disabled={busy || steps.length >= 20}
+        {data.editable && <div className="p-5"><button className={button} disabled={busy}
           onClick={() => setSteps((items) => [...items, { delayMinutes: 5, message: "" }])}>+ Message</button></div>}
       </section>
       <p className={`text-sm ${totalDelay >= 1440 ? "text-red-700" : "text-[#535d6c]"}`}>
@@ -323,18 +340,6 @@ function SequenceEditor({ sequence, data, refresh, onBack }: {
       </section>
       {edit?.kind === "schedule" && <ScheduleEditor minutes={steps[edit.index].delayMinutes}
         onClose={() => setEdit(undefined)} onSave={(delayMinutes) => updateStep(edit.index, { delayMinutes })} />}
-      {edit?.kind === "message" && (
-        <Dialog title="Edit message" onClose={() => setEdit(undefined)}>
-          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); updateStep(edit.index, { message: message.trim() }); }}>
-            <textarea autoFocus aria-label="Message" className={input} rows={5} maxLength={1000} required
-              value={message} onChange={(event) => setMessage(event.target.value)} />
-            <div className="flex justify-end gap-2">
-              <button type="button" className={button} onClick={() => setEdit(undefined)}>Cancel</button>
-              <button className={primary} disabled={!message.trim()}>Save Message</button>
-            </div>
-          </form>
-        </Dialog>
-      )}
     </div>
   );
 }
