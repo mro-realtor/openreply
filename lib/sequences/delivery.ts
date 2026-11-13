@@ -169,7 +169,7 @@ async function deliverStep(id: string) {
     if (step.quickReplies?.length) {
       const waiting = await prisma.sequenceEnrollment.updateMany({
         where: { id, status: "SENDING", nextStep },
-        data: { status: "WAITING" },
+        data: { status: "WAITING", nextStep },
       });
       if (!waiting.count) {
         await releaseWorkspaceDMReservation(sequence.workspaceId, usage.periodStart);
