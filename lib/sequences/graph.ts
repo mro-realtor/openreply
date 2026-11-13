@@ -1,6 +1,7 @@
 export type SequenceGraphNode = {
   id?: string;
   routes?: Record<string, string | null>;
+  delayMinutes?: number;
   [key: string]: unknown;
 };
 
@@ -93,4 +94,29 @@ export function traceSequencePath(
     current = resolveSequenceRoute(steps, current, output);
   }
   return path;
+}
+
+export function maxSequencePathDelay(steps: readonly SequenceGraphNode[]): number {
+  if (!steps.length) return 0;
+  validateSequenceGraph(steps);
+  const indexes = new Map(steps.map((step, index) => [step.id, index]));
+  const memo = new Map<number, number>();
+
+  const maxFrom = (index: number): number => {
+    const cached = memo.get(index);
+    if (cached !== undefined) return cached;
+    const step = steps[index];
+    const targets = step.routes === undefined
+      ? index + 1 < steps.length ? [index + 1] : []
+      : Object.values(step.routes)
+          .filter((targetId): targetId is string => targetId !== null)
+          .map((targetId) => indexes.get(targetId)!)
+          .filter((targetIndex) => targetIndex !== undefined);
+    const continuation = targets.length ? Math.max(...targets.map(maxFrom)) : 0;
+    const total = (step.delayMinutes ?? 0) + continuation;
+    memo.set(index, total);
+    return total;
+  };
+
+  return maxFrom(0);
 }
