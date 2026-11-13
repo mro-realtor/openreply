@@ -205,7 +205,7 @@ describe("sequence delivery", () => {
     const now = Date.now();
     await cancelOnReply("ig", "contact", now);
     expect(enrollment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ interactionAt: { lt: new Date(now) }, recipientId: "contact" }),
+      where: expect.objectContaining({ interactionAt: { lt: new Date(now) }, recipientId: "contact", status: { in: ["PENDING", "SENDING", "WAITING"] } }),
       data: expect.objectContaining({ status: "CANCELLED" }),
     }));
   });
