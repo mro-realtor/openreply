@@ -4,6 +4,7 @@ const WINDOW_MINUTES = 24 * 60;
 
 export const sequenceSteps = z.array(z.object({
   message: z.string().trim().min(1).max(1000),
+  position: z.object({ x: z.number().min(0).max(100000), y: z.number().min(0).max(100000) }).optional(),
   delayMinutes: z.number().int().min(0).max(WINDOW_MINUTES - 1),
 })).min(1).refine(
   (steps) => steps.reduce((total, step) => total + step.delayMinutes, 0) < WINDOW_MINUTES,

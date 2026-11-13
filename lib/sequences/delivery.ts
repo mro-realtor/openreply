@@ -6,7 +6,7 @@ import { renderMessageWithoutLink } from "@/lib/tracking/message";
 import { isInstagramWindowOpen, sequenceSteps } from "./rules";
 
 type EnrollmentTarget = {
-  id: string;
+  id: string | null;
   workspaceId: string;
   instagramAccountId: string;
   sequenceId: string | null;
@@ -28,7 +28,7 @@ export async function enrollInSequence(
   if (!sequence) return;
 
   const steps = sequenceSteps.parse(sequence.steps);
-  await prisma.sequenceEnrollment.createMany({
+  return prisma.sequenceEnrollment.createMany({
     data: [{
       sequenceId: sequence.id,
       automationId: campaign.id,
@@ -47,7 +47,7 @@ export async function cancelOnReply(instagramId: string, recipientId: string, in
   if (interactionAt === undefined || !isInstagramWindowOpen(interactionAt, Date.now())) return;
   await prisma.sequenceEnrollment.updateMany({
     where: {
-      automation: { instagramAccount: { instagramId } },
+      account: { instagramId },
       recipientId,
       interactionAt: { lt: new Date(interactionAt) },
       status: { in: ["PENDING", "SENDING"] },
@@ -59,7 +59,7 @@ export async function cancelOnReply(instagramId: string, recipientId: string, in
 async function deliverStep(id: string) {
   const enrollment = await prisma.sequenceEnrollment.findUnique({
     where: { id },
-    include: { sequence: true, automation: { include: { instagramAccount: true } } },
+    include: { sequence: true, automation: true, account: true },
   });
   if (!enrollment || enrollment.status !== "PENDING") return;
 
@@ -70,7 +70,7 @@ async function deliverStep(id: string) {
       data: { status, reason },
     });
 
-  if (!sequence.enabled || !automation.isActive || automation.sequenceId !== sequence.id) {
+  if (!sequence.enabled || (automation && (!automation.isActive || automation.sequenceId !== sequence.id))) {
     await finish("CANCELLED", "Sequence or campaign is inactive");
     return;
   }
@@ -81,7 +81,7 @@ async function deliverStep(id: string) {
 
   const steps = sequenceSteps.parse(enrollment.steps);
   const step = steps[nextStep];
-  const account = automation.instagramAccount;
+  const account = enrollment.account;
   if (!step || !account.accessToken) {
     await finish("FAILED", "Missing message or Instagram connection");
     return;
@@ -95,14 +95,14 @@ async function deliverStep(id: string) {
 
   try {
     const token = decryptToken(account.accessToken);
-    const usage = await reserveWorkspaceDMSend(automation.workspaceId);
+    const usage = await reserveWorkspaceDMSend(sequence.workspaceId);
     if (!usage.allowed) {
       await finish("FAILED", "Workspace DM limit reached");
       return;
     }
 
     if (!isInstagramWindowOpen(enrollment.interactionAt.getTime(), Date.now())) {
-      await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
+      await releaseWorkspaceDMReservation(sequence.workspaceId, usage.periodStart);
       await finish("EXPIRED", "Instagram messaging window closed");
       return;
     }
@@ -112,12 +112,12 @@ async function deliverStep(id: string) {
         id,
         status: "SENDING",
         sequence: { enabled: true },
-        automation: { isActive: true, sequenceId: sequence.id },
+        ...(automation ? { automation: { isActive: true, sequenceId: sequence.id } } : {}),
       },
       select: { id: true },
     });
     if (!stillSending) {
-      await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
+      await releaseWorkspaceDMReservation(sequence.workspaceId, usage.periodStart);
       await finish("CANCELLED", "Sequence or campaign was stopped");
       return;
     }
