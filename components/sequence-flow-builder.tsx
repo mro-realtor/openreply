@@ -3,9 +3,9 @@
 import SequenceTriggerForm, { type SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import SequenceRouteCanvas from "@/components/sequence-route-canvas";
 import { normalizeSequenceGraph, traceSequencePath } from "@/lib/sequences/graph";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type Step = { id?: string; routes?: Record<string, string | null>; buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
+type Step = { id?: string; routes?: Record<string, string | null>; quickReplies?: { id: string; title: string }[]; buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
 
 type Campaign = {
   id: string;
@@ -65,6 +65,21 @@ export default function SequenceFlowBuilder({
     setFuture((items) => items.slice(1));
   }
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!editable || !(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if (event.key.toLowerCase() === "y" || (event.key.toLowerCase() === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
 
   const [index, setIndex] = useState(initialIndex);
   const [moreBlocks, setMoreBlocks] = useState(false);
@@ -78,7 +93,7 @@ export default function SequenceFlowBuilder({
       const identified = current.map((step) => ({ ...step, id: step.id ?? globalThis.crypto.randomUUID() }));
       return [
         ...identified.map((step, position) => position === index
-          ? { ...step, routes: { ...step.routes, next: newId } }
+          ? step.quickReplies?.length ? step : { ...step, routes: { ...step.routes, next: newId } }
           : step),
         { id: newId, routes: { next: null }, message: "", delayMinutes: 0 },
       ];
@@ -100,13 +115,36 @@ export default function SequenceFlowBuilder({
   };
 
   const buttons = messages[index].buttons ?? [];
+  const quickReplies = messages[index].quickReplies ?? [];
+  function setQuickReplies(next: NonNullable<Step["quickReplies"]>) {
+    changeMessages((current) => current.map((step, position) => position === index ? {
+      ...step,
+      quickReplies: next,
+      routes: Object.fromEntries([
+        ...Object.entries(step.routes ?? {}).filter(([output]) => !output.startsWith("quickReply:")),
+        ...next.map((reply) => [`quickReply:${reply.id}`, step.routes?.[`quickReply:${reply.id}`] ?? null]),
+      ]),
+    } : step));
+  }
+  function updateQuickReply(replyIndex: number, value: Partial<NonNullable<Step["quickReplies"]>[number]>) {
+    const updated = quickReplies.map((reply, position) => position === replyIndex ? { ...reply, ...value } : reply);
+    if (value.id && value.id !== quickReplies[replyIndex]?.id) {
+      const oldKey = `quickReply:${quickReplies[replyIndex]?.id}`;
+      const newKey = `quickReply:${value.id}`;
+      changeMessages((current) => current.map((step, position) => position === index ? {
+        ...step,
+        quickReplies: updated,
+        routes: Object.fromEntries(Object.entries(step.routes ?? {}).map(([key, target]) => [key === oldKey ? newKey : key, target])),
+      } : step));
+    } else setQuickReplies(updated);
+  }
   function setButtons(buttons: NonNullable<Step["buttons"]>) {
     changeMessages(current => current.map((step, position) => position === index ? { ...step, buttons } : step));
   }
   function updateButton(index: number, value: Partial<NonNullable<Step["buttons"]>[number]>) {
     setButtons(buttons.map((button, position) => position === index ? { ...button, ...value } : button));
   }
-  const invalidMessage = messages.some(step => !step.message.trim() || Boolean(step.buttons?.length && (
+  const invalidMessage = messages.some(step => !step.message.trim() || Boolean(step.quickReplies?.some((reply) => !reply.id.trim() || !reply.title.trim())) || Boolean(step.buttons?.length && (
     step.message.trim().length > 640 || step.buttons.some(button => {
       try { return !button.title.trim() || !["http:", "https:"].includes(new URL(button.url).protocol); }
       catch { return true; }
@@ -125,6 +163,26 @@ export default function SequenceFlowBuilder({
           className="font-medium text-[#0069dc] disabled:opacity-50" onClick={() => setMessage(message + "{username}")}>Insert username</button>
         <span>{message.length}/1000</span>
       </div>
+      {quickReplies.map((reply, position) => <div key={reply.id} className="grid gap-2 rounded border border-[#dce0e5] p-3 text-sm">
+        <label>Quick reply title<input aria-label={`Quick reply ${position + 1} title`} className={control + " w-full"} value={reply.title} maxLength={20} readOnly={!editable}
+          onChange={event => updateQuickReply(position, { title: event.target.value })} /></label>
+        <label>Route<select aria-label={`Quick reply ${position + 1} route`} className={control + " w-full"} disabled={!editable}
+          value={messages.findIndex((candidate) => candidate.id === messages[index].routes?.[`quickReply:${reply.id}`])}
+          onChange={event => {
+            const targetIndex = event.target.value === "" ? -1 : Number(event.target.value);
+            const targetId = targetIndex < 0 ? null : messages[targetIndex]?.id ?? null;
+            changeMessages(current => current.map((step, position) => position === index ? {
+              ...step, routes: { ...step.routes, [`quickReply:${reply.id}`]: targetId },
+            } : step));
+          }}>
+          <option value="-1">End flow</option>
+          {messages.map((candidate, targetIndex) => targetIndex === index ? null : <option key={candidate.id ?? targetIndex} value={targetIndex}>Send Message{targetIndex ? ` #${targetIndex + 1}` : ""}</option>)}
+        </select></label>
+        {editable && <button type="button" className={control} onClick={() => setQuickReplies(quickReplies.filter((_, item) => item !== position))}>Remove quick reply</button>}
+      </div>)}
+      {editable && quickReplies.length < 13 && !buttons.length && <button type="button" className={control + " w-full"}
+        onClick={() => setQuickReplies([...quickReplies, { id: globalThis.crypto.randomUUID(), title: "" }])}>+ Add Quick Reply</button>}
+      {quickReplies.length > 0 && <p className="text-xs text-[#535d6c]">Quick replies route a contact to the selected message. Instagram allows up to 13 choices.</p>}
       {buttons.map((button, position) => <div key={position} className="grid gap-2 rounded border border-[#dce0e5] p-3 text-sm">
         <label>Button title<input className={control + " w-full"} value={button.title} maxLength={20} readOnly={!editable}
           onChange={event => updateButton(position, { title: event.target.value })} /></label>
@@ -132,17 +190,31 @@ export default function SequenceFlowBuilder({
           onChange={event => updateButton(position, { url: event.target.value })} /></label>
         {editable && <button type="button" className={control} onClick={() => setButtons(buttons.filter((_, item) => item !== position))}>Remove button</button>}
       </div>)}
-      {editable && buttons.length < 3 && <button type="button" className={control + " w-full"}
+      {editable && buttons.length < 3 && !quickReplies.length && <button type="button" className={control + " w-full"}
         onClick={() => setButtons([...buttons, { title: "", url: "" }])}>+ Add Button</button>}
       {buttons.length > 0 && <p className="text-xs text-[#535d6c]">Website buttons require a title, an HTTP or HTTPS URL, and a message of up to 640 characters.</p>}
       <div className="space-y-2 border-t border-[#e5e7eb] pt-4">
         <p className="text-xs text-[#535d6c]">Content blocks</p>
         <button type="button" className="w-full rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm"
           onClick={() => document.getElementById("sequence-message-text")?.focus()}>Text</button>
-        {["Image", "PDF", "Delay", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
+        {["Image", "PDF", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
           <button key={name} type="button" disabled className="flex w-full justify-between rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm text-[#535d6c]">
             <span>{name}</span><span className="text-xs">Unavailable</span>
           </button>)}
+        <div className="rounded-lg border border-[#cbd1d8] p-3">
+          <label className="flex items-center justify-between gap-3 text-sm font-medium" htmlFor="sequence-delay-minutes">
+            Delay
+            <span className="flex items-center gap-2 font-normal">
+              <input id="sequence-delay-minutes" aria-label="Delay minutes" type="number" min={0} max={1439}
+                className="w-20 rounded-md border border-[#dce0e5] px-2 py-1 text-right" value={messages[index].delayMinutes}
+                disabled={!editable} onChange={(event) => changeMessages((current) => current.map((step, position) => position === index
+                  ? { ...step, delayMinutes: Math.max(0, Math.min(1439, Number(event.target.value) || 0)) }
+                  : step))} />
+              minutes
+            </span>
+          </label>
+          <p className="mt-1 text-xs text-[#535d6c]">Wait before sending this message. Instagram sequences must stay within 24 hours.</p>
+        </div>
         <button type="button" className={control + " w-full text-left"} aria-expanded={moreBlocks}
           onClick={() => setMoreBlocks(!moreBlocks)}>{moreBlocks ? "Show less" : "More"}</button>
       </div>
@@ -159,6 +231,9 @@ export default function SequenceFlowBuilder({
             <p className="whitespace-pre-wrap break-words rounded-2xl bg-[#f0f1f3] p-3 text-sm">
               {messages[stepIndex].message.trim() || "Your message appears here."}
             </p>
+            {messages[stepIndex].quickReplies?.map((reply) => (
+              <p key={reply.id} className="mt-1 rounded-lg border border-[#dce0e5] p-2 text-center text-sm text-[#0069dc]">{reply.title || "Quick reply"}</p>
+            ))}
             {messages[stepIndex].buttons?.map((button, buttonIndex) => (
               <p key={buttonIndex} className="mt-1 rounded-lg border border-[#dce0e5] p-2 text-center text-sm text-[#0069dc]">
                 {button.title || "Website button"}

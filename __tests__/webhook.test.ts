@@ -318,6 +318,41 @@ describe("parseMessageEvents", () => {
     ]);
   });
 
+  it("preserves a quick reply payload on inbound Instagram DMs", () => {
+    const payload = messagingPayload([
+      {
+        sender: { id: "user_999" },
+        recipient: { id: "ig_456" },
+        message: {
+          mid: "mid_quick_reply",
+          text: "Buy a home",
+          quick_reply: { payload: "sequence:seq_1:step:start:reply:buy" },
+        },
+      },
+    ]);
+
+    expect(parseMessageEvents(payload)).toMatchObject([
+      { quickReplyPayload: "sequence:seq_1:step:start:reply:buy" },
+    ]);
+  });
+
+  it("parses a quick reply payload even when Meta omits its text", () => {
+    const payload = messagingPayload([
+      {
+        sender: { id: "user_999" },
+        recipient: { id: "ig_456" },
+        message: {
+          mid: "mid_payload_only",
+          quick_reply: { payload: "sequence:seq_1:step:start:reply:buy" },
+        },
+      },
+    ]);
+
+    expect(parseMessageEvents(payload)).toMatchObject([
+      { quickReplyPayload: "sequence:seq_1:step:start:reply:buy" },
+    ]);
+  });
+
   it("should ignore echoes of the account's own messages", () => {
     const payload = messagingPayload([
       {

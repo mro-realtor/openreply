@@ -63,6 +63,7 @@ export interface ProcessMessageJob {
   messageText: string;
   senderId: string;
   interactionAt?: number;
+  quickReplyPayload?: string;
 }
 
 export type DmQueueJob =

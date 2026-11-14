@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { enrollment, send, usage } = vi.hoisted(() => ({
+const { enrollment, send, sendQuickReply, usage } = vi.hoisted(() => ({
   enrollment: {
     createMany: vi.fn(),
     updateMany: vi.fn(),
@@ -9,13 +9,14 @@ const { enrollment, send, usage } = vi.hoisted(() => ({
     findFirst: vi.fn(),
   },
   send: vi.fn(),
+  sendQuickReply: vi.fn(),
   usage: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
   prisma: { sequenceEnrollment: enrollment, sequence: { findFirst: async () => ({ id: "seq", steps }) } },
 }));
-vi.mock("@/lib/meta/client", () => ({ sendDirectMessage: send }));
+vi.mock("@/lib/meta/client", () => ({ sendDirectMessage: send, sendDirectMessageWithQuickReplies: sendQuickReply }));
 vi.mock("@/lib/meta/oauth", () => ({ decryptToken: () => "token" }));
 vi.mock("@/lib/billing/usage", () => ({
   reserveWorkspaceDMSend: usage,
@@ -23,6 +24,8 @@ vi.mock("@/lib/billing/usage", () => ({
 }));
 
 import { cancelOnReply, deliverDueSequenceSteps, enrollInSequence } from "@/lib/sequences/delivery";
+import { resolveSequenceRoute, validateSequenceGraph } from "@/lib/sequences/graph";
+import { sequenceSteps } from "@/lib/sequences/rules";
 
 const steps = [{ message: "First", delayMinutes: 0 }, { message: "Second", delayMinutes: 2 }];
 const campaign = { id: "campaign", sequenceId: "seq", workspaceId: "workspace", instagramAccountId: "account" };
@@ -88,6 +91,97 @@ describe("sequence delivery", () => {
     }));
   });
 
+  it("validates and resolves quick-reply output routes", () => {
+    const steps: Array<{ id: string; routes: Record<string, string | null>; quickReplies?: Array<{ id: string; title: string }> }> = [
+      {
+        id: "question",
+        quickReplies: [{ id: "buy", title: "Buy" }, { id: "rent", title: "Rent" }],
+        routes: { "quickReply:buy": "buy_path", "quickReply:rent": "rent_path" },
+      },
+      { id: "buy_path", routes: { next: null } },
+      { id: "rent_path", routes: { next: null } },
+    ];
+
+    expect(() => validateSequenceGraph(steps)).not.toThrow();
+    expect(resolveSequenceRoute(steps, 0, "quickReply:buy")).toBe(1);
+    expect(resolveSequenceRoute(steps, 0, "quickReply:rent")).toBe(2);
+  });
+
+  it("validates quick reply limits and prevents mixing website buttons with quick replies", () => {
+    const makeStep = (quickReplies: Array<{ id: string; title: string }>) => [{
+      id: "question",
+      routes: {},
+      message: "Choose",
+      delayMinutes: 0,
+      quickReplies,
+    }];
+    const oneChoice = [{ id: "buy", title: "Buy" }];
+
+    expect(sequenceSteps.safeParse(makeStep(oneChoice)).success).toBe(true);
+    expect(sequenceSteps.safeParse(makeStep(Array.from({ length: 14 }, (_, i) => ({ id: "r" + i, title: "Choice " + i })))).success).toBe(false);
+    expect(sequenceSteps.safeParse([{
+      ...makeStep(oneChoice)[0],
+      buttons: [{ title: "Open", url: "https://example.com" }],
+    }]).success).toBe(false);
+  });
+
+  it("sends quick replies and holds the enrollment until a choice arrives", async () => {
+    const entry = await enrollment.findUnique();
+    enrollment.findUnique.mockResolvedValue({
+      ...entry,
+      steps: [{
+        id: "question",
+        routes: {},
+        quickReplies: [{ id: "buy", title: "Buy" }],
+        message: "What are you looking for?",
+        delayMinutes: 0,
+      }],
+    });
+
+    await deliverDueSequenceSteps();
+
+    expect(sendQuickReply).toHaveBeenCalledWith("token", "ig", "contact", "What are you looking for?", [
+      { title: "Buy", payload: "sequence:seq:step:question:reply:buy" },
+    ]);
+    expect(enrollment.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "SENDING", nextStep: 0 }),
+      data: expect.objectContaining({ status: "WAITING", nextStep: 0 }),
+    }));
+  });
+
+  it("routes a waiting enrollment to the selected quick-reply target", async () => {
+    const routeQuickReply = Reflect.get(
+      await import("@/lib/sequences/delivery"),
+      "routeSequenceQuickReply",
+    ) as (instagramId: string, recipientId: string, payload: string, interactionAt: number) => Promise<string[]>;
+    expect(routeQuickReply).toBeTypeOf("function");
+    const interactionAt = Date.now() - 1_000;
+    enrollment.findMany.mockResolvedValue([{
+      id: "entry",
+      sequenceId: "seq",
+      nextStep: 0,
+      steps: [
+        {
+          id: "question",
+          routes: { "quickReply:buy": "finish", "quickReply:stop": null },
+          quickReplies: [{ id: "buy", title: "Buy" }, { id: "stop", title: "Stop" }],
+          message: "Choose",
+          delayMinutes: 0,
+        },
+        { id: "skipped", routes: { next: null }, message: "Skip", delayMinutes: 1 },
+        { id: "finish", routes: { next: null }, message: "Finish", delayMinutes: 7 },
+      ],
+    }]);
+
+    const routed = await routeQuickReply("ig", "contact", "sequence:seq:step:question:reply:buy", interactionAt);
+
+    expect(routed).toEqual(["entry"]);
+    expect(enrollment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "entry", nextStep: 0, status: "WAITING" },
+      data: expect.objectContaining({ status: "PENDING", nextStep: 2, interactionAt: new Date(interactionAt) }),
+    }));
+  });
+
   it("delivers an Inbox subscription without a campaign", async () => {
     const entry = await enrollment.findUnique();
     enrollment.findUnique.mockResolvedValue({ ...entry, automation: null });
@@ -111,8 +205,34 @@ describe("sequence delivery", () => {
     const now = Date.now();
     await cancelOnReply("ig", "contact", now);
     expect(enrollment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ interactionAt: { lt: new Date(now) }, recipientId: "contact" }),
+      where: expect.objectContaining({ interactionAt: { lt: new Date(now) }, recipientId: "contact", status: { in: ["PENDING", "SENDING", "WAITING"] } }),
       data: expect.objectContaining({ status: "CANCELLED" }),
+    }));
+  });
+
+  it("ignores a quick-reply payload that does not belong to the waiting step", async () => {
+    const routeQuickReply = Reflect.get(
+      await import("@/lib/sequences/delivery"),
+      "routeSequenceQuickReply",
+    ) as (instagramId: string, recipientId: string, payload: string, interactionAt: number) => Promise<string[]>;
+    enrollment.findMany.mockResolvedValue([{
+      id: "entry", sequenceId: "seq", nextStep: 0,
+      steps: [{
+        id: "question", routes: { "quickReply:buy": null },
+        quickReplies: [{ id: "buy", title: "Buy" }], message: "Choose", delayMinutes: 0,
+      }],
+    }]);
+    const routed = await routeQuickReply("ig", "contact", "sequence:other:step:question:reply:buy", Date.now());
+    expect(routed).toEqual([]);
+    expect(enrollment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("expires quick reply waits after the Instagram messaging window closes", async () => {
+    await deliverDueSequenceSteps();
+
+    expect(enrollment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "WAITING", interactionAt: { lt: expect.any(Date) } }),
+      data: { status: "EXPIRED", reason: "Instagram messaging window closed" },
     }));
   });
 

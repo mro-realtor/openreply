@@ -358,6 +358,34 @@ export async function sendDirectMessage(
   return handleResponse(response);
 }
 
+export async function sendDirectMessageWithQuickReplies(
+  accessToken: string,
+  instagramAccountId: string,
+  userId: string,
+  text: string,
+  replies: Array<{ title: string; payload: string }>
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetch(
+    `${instagramGraphBase()}/${instagramAccountId}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        recipient: { id: userId },
+        message: {
+          text,
+          quick_replies: replies.slice(0, 13).map((reply) => ({
+            content_type: "text",
+            title: reply.title.slice(0, 20),
+            payload: reply.payload,
+          })),
+        },
+      }),
+    }
+  );
+  return handleResponse(response);
+}
+
 /**
  * Send a direct message as a button template with up to 3 web_url buttons —
  * the reveal message plus tappable link buttons (cleaner than inline URLs).

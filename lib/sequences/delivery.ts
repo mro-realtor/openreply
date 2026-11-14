@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { releaseWorkspaceDMReservation, reserveWorkspaceDMSend } from "@/lib/billing/usage";
-import { sendDirectMessage, sendDirectMessageWithLinkButton } from "@/lib/meta/client";
+import { sendDirectMessage, sendDirectMessageWithLinkButton, sendDirectMessageWithQuickReplies } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { renderMessageWithoutLink } from "@/lib/tracking/message";
 import { resolveSequenceRoute, validateSequenceGraph } from "./graph";
@@ -44,17 +44,58 @@ export async function enrollInSequence(
   });
 }
 
-export async function cancelOnReply(instagramId: string, recipientId: string, interactionAt?: number) {
+export async function cancelOnReply(instagramId: string, recipientId: string, interactionAt?: number, exceptIds: string[] = []) {
   if (interactionAt === undefined || !isInstagramWindowOpen(interactionAt, Date.now())) return;
   await prisma.sequenceEnrollment.updateMany({
     where: {
       account: { instagramId },
       recipientId,
+      ...(exceptIds.length ? { id: { notIn: exceptIds } } : {}),
       interactionAt: { lt: new Date(interactionAt) },
-      status: { in: ["PENDING", "SENDING"] },
+      status: { in: ["PENDING", "SENDING", "WAITING"] },
     },
     data: { status: "CANCELLED", reason: "Contact replied" },
   });
+}
+
+const QUICK_REPLY_PREFIX = "sequence:";
+
+export async function routeSequenceQuickReply(
+  instagramId: string,
+  recipientId: string,
+  payload: string,
+  interactionAt: number,
+): Promise<string[]> {
+  if (!payload.startsWith(QUICK_REPLY_PREFIX) || !isInstagramWindowOpen(interactionAt, Date.now())) return [];
+  const waiting = await prisma.sequenceEnrollment.findMany({
+    where: { account: { instagramId }, recipientId, status: "WAITING" },
+    select: { id: true, sequenceId: true, nextStep: true, steps: true },
+  });
+  const routed: string[] = [];
+  for (const enrollment of waiting) {
+    const steps = sequenceSteps.safeParse(enrollment.steps);
+    if (!steps.success) continue;
+    const step = steps.data[enrollment.nextStep];
+    if (!step?.id || !step.quickReplies?.length) continue;
+    const reply = step.quickReplies.find((item) =>
+      payload === `sequence:${enrollment.sequenceId}:step:${step.id}:reply:${item.id}`
+    );
+    if (!reply) continue;
+    const targetIndex = resolveSequenceRoute(steps.data, enrollment.nextStep, `quickReply:${reply.id}`);
+    const target = targetIndex === null ? undefined : steps.data[targetIndex];
+    const update = await prisma.sequenceEnrollment.updateMany({
+      where: { id: enrollment.id, nextStep: enrollment.nextStep, status: "WAITING" },
+      data: {
+        status: target ? "PENDING" : "COMPLETED",
+        nextStep: targetIndex ?? enrollment.nextStep,
+        dueAt: new Date(interactionAt + (target?.delayMinutes ?? 0) * 60_000),
+        interactionAt: new Date(interactionAt),
+        reason: null,
+      },
+    });
+    if (update.count) routed.push(enrollment.id);
+  }
+  return routed;
 }
 
 async function deliverStep(id: string) {
@@ -67,7 +108,7 @@ async function deliverStep(id: string) {
   const { automation, sequence, nextStep, recipientId, recipientName } = enrollment;
   const finish = (status: "CANCELLED" | "EXPIRED" | "FAILED", reason: string) =>
     prisma.sequenceEnrollment.updateMany({
-      where: { id, nextStep, status: { in: ["PENDING", "SENDING"] } },
+      where: { id, nextStep, status: { in: ["PENDING", "SENDING", "WAITING"] } },
       data: { status, reason },
     });
 
@@ -125,7 +166,22 @@ async function deliverStep(id: string) {
     }
 
     const message = renderMessageWithoutLink({ message: step.message, commenterName: recipientName });
-    if (step.buttons?.length) {
+    if (step.quickReplies?.length) {
+      const waiting = await prisma.sequenceEnrollment.updateMany({
+        where: { id, status: "SENDING", nextStep },
+        data: { status: "WAITING", nextStep },
+      });
+      if (!waiting.count) {
+        await releaseWorkspaceDMReservation(sequence.workspaceId, usage.periodStart);
+        return;
+      }
+      await sendDirectMessageWithQuickReplies(token, account.instagramId, recipientId, message,
+        step.quickReplies.map((reply) => ({
+          title: reply.title,
+          payload: `sequence:${sequence.id}:step:${step.id}:reply:${reply.id}`,
+        })));
+      return;
+    } else if (step.buttons?.length) {
       await sendDirectMessageWithLinkButton(token, account.instagramId, recipientId, message, step.buttons);
     } else {
       await sendDirectMessage(token, account.instagramId, recipientId, message);
@@ -149,6 +205,10 @@ async function deliverStep(id: string) {
 }
 
 export async function deliverDueSequenceSteps() {
+  await prisma.sequenceEnrollment.updateMany({
+    where: { status: "WAITING", interactionAt: { lt: new Date(Date.now() - 24 * 60 * 60_000) } },
+    data: { status: "EXPIRED", reason: "Instagram messaging window closed" },
+  });
   await prisma.sequenceEnrollment.updateMany({
     where: { status: "SENDING", updatedAt: { lt: new Date(Date.now() - 5 * 60_000) } },
     data: { status: "FAILED", reason: "Delivery could not be confirmed" },

@@ -2,6 +2,7 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import {
+  arrangeSequencePositions,
   normalizeSequenceGraph,
   resolveSequenceRoute,
   validateSequenceGraph,
@@ -11,6 +12,7 @@ type Step = {
   id?: string;
   routes?: Record<string, string | null>;
   buttons?: { title: string; url: string }[];
+  quickReplies?: { id: string; title: string }[];
   position?: { x: number; y: number };
   delayMinutes: number;
   message: string;
@@ -141,7 +143,7 @@ export default function SequenceRouteCanvas({
           </div>}
         </div>
         <p className="mx-auto rounded bg-[#e9edf1] px-3 py-1 text-xs text-[#535d6c]">Select a step to edit</p>
-        <label className="flex items-center gap-2 text-xs text-[#535d6c]">
+        {!steps[selectedIndex]?.quickReplies?.length && <label className="flex items-center gap-2 text-xs text-[#535d6c]">
           Select Existing Step
           <select className={control} aria-label="Select Existing Step" disabled={!editable}
             value={currentTarget === null ? "" : String(currentTarget)}
@@ -151,8 +153,8 @@ export default function SequenceRouteCanvas({
               <option key={step.id ?? index} value={index}>Send Message{index ? ` #${index + 1}` : ""}</option>
             ))}
           </select>
-        </label>
-        {selectedConnection !== undefined && resolveSequenceRoute(steps, selectedConnection, "next") !== null && editable && (
+        </label>}
+        {selectedConnection !== undefined && !steps[selectedConnection]?.quickReplies?.length && resolveSequenceRoute(steps, selectedConnection, "next") !== null && editable && (
           <button className={control} onClick={() => changeRoute(selectedConnection, null)}>Remove connection</button>
         )}
       </div>
@@ -175,23 +177,29 @@ export default function SequenceRouteCanvas({
                 d={`M275,110 C330,110 310,${positions[0]?.y ?? 110} ${positions[0]?.x ?? 365},${(positions[0]?.y ?? 58) + 52}`}
                 stroke="#8794a5" strokeWidth="2" fill="none" markerEnd="url(#sequence-route-arrow)" pointerEvents="none"
               />
-              {steps.map((step, index) => {
-                const targetIndex = resolveSequenceRoute(steps, index, "next");
-                if (targetIndex === null) return null;
-                const source = positions[index];
-                const target = positions[targetIndex];
-                const selected = selectedConnection === index;
-                const startX = source.x + 265;
-                const startY = source.y + 70;
-                return (
-                  <path key={step.id ?? index}
-                    d={`M${startX},${startY} C${startX + 85},${startY} ${target.x - 85},${target.y + 52} ${target.x},${target.y + 52}`}
-                    stroke={selected ? "#0069dc" : "#8794a5"} strokeWidth={selected ? 3 : 2} fill="none"
-                    markerEnd="url(#sequence-route-arrow)" pointerEvents="stroke" className="cursor-pointer"
-                    aria-label={`Next Step from message ${index + 1} to message ${targetIndex + 1}`}
-                    onClick={(event) => { event.stopPropagation(); setSelectedConnection(index); onSelectStep(index); }}
-                  />
-                );
+              {steps.flatMap((step, index) => {
+                const outputs = step.quickReplies?.length
+                  ? step.quickReplies.map((reply) => ({ output: `quickReply:${reply.id}`, label: reply.title }))
+                  : [{ output: "next", label: "Next Step" }];
+                return outputs.flatMap(({ output, label }, outputIndex) => {
+                  const targetIndex = resolveSequenceRoute(steps, index, output);
+                  if (targetIndex === null) return [];
+                  const source = positions[index];
+                  const target = positions[targetIndex];
+                  const selected = selectedConnection === index;
+                  const startX = source.x + 265;
+                  const startY = source.y + (step.quickReplies?.length ? 45 + outputIndex * (80 / Math.max(1, outputs.length - 1)) : 70);
+                  return [<g key={`${step.id ?? index}-${output}`}>
+                    <path
+                      d={`M${startX},${startY} C${startX + 85},${startY} ${target.x - 85},${target.y + 52} ${target.x},${target.y + 52}`}
+                      stroke={selected ? "#0069dc" : "#8794a5"} strokeWidth={selected ? 3 : 2} fill="none"
+                      markerEnd="url(#sequence-route-arrow)" pointerEvents="stroke" className="cursor-pointer"
+                      aria-label={`${label} from message ${index + 1} to message ${targetIndex + 1}`}
+                      onClick={(event) => { event.stopPropagation(); setSelectedConnection(index); onSelectStep(index); }}
+                    />
+                    {step.quickReplies?.length ? <text x={startX + 8} y={startY - 5} fill="#535d6c" fontSize="11">{label}</text> : null}
+                  </g>];
+                });
               })}
             </svg>
             <div className={card + " absolute left-4 top-10 max-w-[260px]"}>
@@ -216,6 +224,8 @@ export default function SequenceRouteCanvas({
                   onClick={() => onSelectStep(index)}>
                   <span className="block font-semibold">Send Message{index ? ` #${index + 1}` : ""}</span>
                   <span className="mt-2 line-clamp-2 break-words rounded bg-[#f3f4f6] p-2 text-sm">{step.message || "Add a text"}</span>
+                  {step.quickReplies?.map((reply) => <span key={reply.id}
+                    className="mt-1 block rounded bg-[#eef4ff] p-2 text-center text-xs text-[#0069dc]">{reply.title || "Quick reply"}</span>)}
                   {step.buttons?.map((button, buttonIndex) => <span key={buttonIndex}
                     className="mt-1 block rounded bg-[#f3f4f6] p-2 text-center text-xs text-[#0069dc]">{button.title || "Website button"}</span>)}
                 </button>
@@ -230,13 +240,22 @@ export default function SequenceRouteCanvas({
         </div>
       </div>
       <div className="mt-auto flex justify-end gap-2 pt-6">
-        {editable && <button className={control} onClick={() => onMessagesChange(steps.map((step) => ({ ...step, position: undefined })))}>
+        {editable && <button className={control} onClick={() => onMessagesChange(arrangeSequencePositions(steps))}>
           Auto Arrange Steps
         </button>}
         <button className={control} aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.65, value - 0.1))}>−</button>
         <button className={control} aria-label="Reset zoom" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
         <button className={control} aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(1.25, value + 0.1))}>+</button>
       </div>
+      <aside aria-label="Canvas minimap" className="pointer-events-none absolute bottom-16 right-8 hidden w-36 rounded-lg border border-[#dfe1e5] bg-white/95 p-2 shadow-sm xl:block">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#697586]">Minimap</p>
+        <div className="relative h-20 overflow-hidden rounded border border-[#eef0f2] bg-[#fafbfc]">
+          {positions.map((position, index) => (
+            <span key={steps[index].id ?? index} className={`absolute h-3 w-5 rounded-sm border ${index === selectedIndex ? "border-[#1682e8] bg-[#dcebff]" : "border-[#cbd3dc] bg-white"}`}
+              style={{ left: `${Math.min(90, (position.x / Math.max(canvasWidth, 1)) * 100)}%`, top: `${Math.min(84, (position.y / Math.max(canvasHeight, 1)) * 100)}%` }} />
+          ))}
+        </div>
+      </aside>
     </div>
   );
 }

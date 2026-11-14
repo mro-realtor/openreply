@@ -7,6 +7,10 @@ const sequenceStep = z.object({
   id: z.string().trim().min(1).max(100).optional(),
   routes: z.record(z.string(), z.string().nullable()).optional(),
   message: z.string().trim().min(1).max(1000),
+  quickReplies: z.array(z.object({
+    id: z.string().trim().min(1).max(100),
+    title: z.string().trim().min(1).max(20),
+  })).max(13).optional(),
   buttons: z.array(z.object({
     title: z.string().trim().min(1).max(20),
     url: z.url({ protocol: /^https?$/ }),
@@ -19,7 +23,7 @@ const sequenceStep = z.object({
 }).refine(
   (step) => !step.buttons?.length || step.message.length <= 640,
   "Messages with buttons must be 640 characters or fewer.",
-);
+).refine((step) => !(step.buttons?.length && step.quickReplies?.length), "Website buttons and quick replies cannot be combined.");
 
 export const sequenceSteps = z.array(sequenceStep).min(1).superRefine((steps, context) => {
   try {

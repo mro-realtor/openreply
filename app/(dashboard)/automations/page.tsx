@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import AutomationWorkspace from "@/components/automation-workspace";
 
-export default function AutomationsRedirectPage() {
-  redirect("/campaigns");
+export default function AutomationsPage() {
+  return <AutomationWorkspace />;
 }
