@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { releaseWorkspaceDMReservation, reserveWorkspaceDMSend } from "@/lib/billing/usage";
-import { sendDirectMessage, sendDirectMessageWithLinkButton, sendDirectMessageWithQuickReplies } from "@/lib/meta/client";
+import { sendDirectMessage, sendDirectMessageWithAttachment, sendDirectMessageWithLinkButton, sendDirectMessageWithQuickReplies } from "@/lib/meta/client";
 import { decryptToken } from "@/lib/meta/oauth";
 import { renderMessageWithoutLink } from "@/lib/tracking/message";
 import { resolveSequenceRoute, validateSequenceGraph } from "./graph";
@@ -185,6 +185,11 @@ async function deliverStep(id: string) {
       await sendDirectMessageWithLinkButton(token, account.instagramId, recipientId, message, step.buttons);
     } else {
       await sendDirectMessage(token, account.instagramId, recipientId, message);
+    }
+    for (const block of step.contentBlocks ?? []) {
+      if (!block.url || !["image", "video", "audio", "file"].includes(block.type)) continue;
+      const attachmentType = (block.type === "pdf" ? "file" : block.type) as "image" | "video" | "audio" | "file";
+      await sendDirectMessageWithAttachment(token, account.instagramId, recipientId, attachmentType, block.url);
     }
   } catch (error) {
     // A lost response can mean Meta accepted the message. Do not send it twice.

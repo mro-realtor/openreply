@@ -358,6 +358,22 @@ export async function sendDirectMessage(
   return handleResponse(response);
 }
 
+/** Send a supported Instagram attachment after the text message. */
+export async function sendDirectMessageWithAttachment(
+  accessToken: string,
+  instagramAccountId: string,
+  userId: string,
+  type: "image" | "video" | "audio" | "file",
+  url: string,
+): Promise<{ recipient_id: string; message_id: string }> {
+  const response = await fetch(`${instagramGraphBase()}/${instagramAccountId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ recipient: { id: userId }, message: { attachment: { type, payload: { url, is_reusable: true } } } }),
+  });
+  return handleResponse(response);
+}
+
 export async function sendDirectMessageWithQuickReplies(
   accessToken: string,
   instagramAccountId: string,
