@@ -5,7 +5,8 @@ import SequenceRouteCanvas from "@/components/sequence-route-canvas";
 import { normalizeSequenceGraph, traceSequencePath } from "@/lib/sequences/graph";
 import { useEffect, useState } from "react";
 
-type Step = { id?: string; routes?: Record<string, string | null>; quickReplies?: { id: string; title: string }[]; buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
+type ContentBlock = { type: "image" | "pdf" | "data" | "audio" | "video" | "card" | "gallery" | "dynamic"; url?: string; title?: string };
+type Step = { id?: string; routes?: Record<string, string | null>; quickReplies?: { id: string; title: string }[]; buttons?: { title: string; url: string }[]; contentBlocks?: ContentBlock[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
 
 type Campaign = {
   id: string;
@@ -83,6 +84,7 @@ export default function SequenceFlowBuilder({
 
   const [index, setIndex] = useState(initialIndex);
   const [moreBlocks, setMoreBlocks] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const message = messages[index].message;
   const setMessage = (value: string) => changeMessages((current) =>
     current.map((step, position) => position === index ? { ...step, message: value } : step)
@@ -141,6 +143,10 @@ export default function SequenceFlowBuilder({
   function setButtons(buttons: NonNullable<Step["buttons"]>) {
     changeMessages(current => current.map((step, position) => position === index ? { ...step, buttons } : step));
   }
+  const contentBlocks = messages[index].contentBlocks ?? [];
+  const blockNames: Array<[ContentBlock["type"], string]> = [["image", "Image"], ["pdf", "PDF"], ["data", "Data Collection"], ["audio", "Audio"], ["video", "Video"], ["card", "Card"], ["gallery", "Gallery"], ["dynamic", "Dynamic Content"]];
+  function addBlock(type: ContentBlock["type"]) { changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: [...(step.contentBlocks ?? []), { type, url: "", title: "" }] } : step)); }
+  function updateBlock(blockIndex: number, value: Partial<ContentBlock>) { changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: (step.contentBlocks ?? []).map((block, item) => item === blockIndex ? { ...block, ...value } : block) } : step)); }
   function updateButton(index: number, value: Partial<NonNullable<Step["buttons"]>[number]>) {
     setButtons(buttons.map((button, position) => position === index ? { ...button, ...value } : button));
   }
@@ -197,10 +203,8 @@ export default function SequenceFlowBuilder({
         <p className="text-xs text-[#535d6c]">Content blocks</p>
         <button type="button" className="w-full rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm"
           onClick={() => document.getElementById("sequence-message-text")?.focus()}>Text</button>
-        {["Image", "PDF", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
-          <button key={name} type="button" disabled className="flex w-full justify-between rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm text-[#535d6c]">
-            <span>{name}</span><span className="text-xs">Unavailable</span>
-          </button>)}
+        <div className="grid gap-2 sm:grid-cols-2">{blockNames.filter(([type]) => moreBlocks || ["image", "pdf", "data"].includes(type)).map(([type, name]) => <button key={type} type="button" disabled={!editable} className="rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm hover:border-[#0069dc] disabled:opacity-50" onClick={() => addBlock(type)}><span>{name}</span><span className="mt-1 block text-xs text-[#697586]">Add block</span></button>)}</div>
+        {contentBlocks.map((block, blockIndex) => <div key={`${block.type}-${blockIndex}`} className="space-y-2 rounded-lg border border-[#cbd1d8] bg-[#f8fafc] p-3"><div className="flex items-center justify-between text-sm font-medium"><span>{blockNames.find(([type]) => type === block.type)?.[1]}</span>{editable && <button type="button" className="text-xs text-red-600" onClick={() => changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: (step.contentBlocks ?? []).filter((_, item) => item !== blockIndex) } : step))}>Remove</button>}</div>{block.type === "data" ? <input className={control + " w-full"} placeholder="What should we ask?" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} /> : <><input className={control + " w-full"} placeholder="https://…" type="url" value={block.url ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { url: event.target.value })} />{["card", "gallery", "dynamic"].includes(block.type) && <input className={control + " w-full"} placeholder="Title or dynamic key" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} />}</>}</div>)}
         <div className="rounded-lg border border-[#cbd1d8] p-3">
           <label className="flex items-center justify-between gap-3 text-sm font-medium" htmlFor="sequence-delay-minutes">
             Delay
@@ -265,12 +269,12 @@ export default function SequenceFlowBuilder({
 
       <div className="relative flex min-h-[calc(100dvh-12rem)] flex-col lg:flex-row">
         {panel && (
-          <aside className="z-10 max-h-[calc(100dvh-10rem)] w-full shrink-0 overflow-y-auto border-r border-[#dfe1e5] bg-white lg:w-[340px]">
+          <aside className={`${panelCollapsed ? "lg:w-12" : "lg:w-[340px]"} z-10 max-h-[calc(100dvh-10rem)] w-full shrink-0 overflow-y-auto border-r border-[#dfe1e5] bg-white transition-[width]`}>
             <div className={`flex items-center justify-between gap-2 px-4 py-4 font-semibold ${panel === "triggers" ? "bg-[#ddf6e8]" : panel === "message" ? "bg-[#f1dbf4]" : "bg-[#e5f1ff]"}`}>
-              {panel === "triggers" ? "Start automation when…" : panel === "message" ? `Send Message${index ? ` #${index + 1}` : ""}` : "Preview"}
-              <button className="px-2" aria-label="Close panel" onClick={() => setPanel(undefined)}>×</button>
+              {!panelCollapsed && (panel === "triggers" ? "Start automation when…" : panel === "message" ? `Send Message${index ? ` #${index + 1}` : ""}` : "Preview")}
+              <div className="flex items-center gap-1"><button className="px-2" aria-label={panelCollapsed ? "Expand panel" : "Collapse panel"} onClick={() => setPanelCollapsed(value => !value)}>{panelCollapsed ? "→" : "←"}</button>{!panelCollapsed && <button className="px-2" aria-label="Close panel" onClick={() => setPanel(undefined)}>×</button>}</div>
             </div>
-            <div className="space-y-3 p-4">
+            {!panelCollapsed && <div className="space-y-3 p-4">
               {panel === "message" && composer}
               {panel === "preview" && preview}
               {panel === "triggers" && (
@@ -317,7 +321,7 @@ export default function SequenceFlowBuilder({
                   )}
                 </>
               )}
-            </div>
+            </div>}
           </aside>
         )}
         {basic ? (

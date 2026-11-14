@@ -15,6 +15,11 @@ const sequenceStep = z.object({
     title: z.string().trim().min(1).max(20),
     url: z.url({ protocol: /^https?$/ }),
   })).max(3).optional(),
+  contentBlocks: z.array(z.object({
+    type: z.enum(["image", "pdf", "data", "audio", "video", "card", "gallery", "dynamic"]),
+    url: z.string().max(2000).optional(),
+    title: z.string().max(200).optional(),
+  })).max(20).optional(),
   position: z.object({
     x: z.number().min(0).max(100000),
     y: z.number().min(0).max(100000),
