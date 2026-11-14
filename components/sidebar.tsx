@@ -11,12 +11,6 @@ const primaryItems = [
   { label: "Settings", href: "/settings", icon: "⚙" },
 ] as const;
 
-const unavailableItems = [
-  { label: "Contacts", icon: "♙" },
-  { label: "AI Automation", icon: "AI" },
-  { label: "Broadcasts", icon: "➤" },
-] as const;
-
 const utilityItems = [
   { label: "Overview", href: "/overview", icon: "◷" },
   { label: "Campaigns", href: "/campaigns", icon: "▦" },
@@ -61,35 +55,7 @@ export default function Sidebar({ isOpen, onClose, workspaceName }: SidebarProps
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Workspace">
-          {primaryItems.slice(0, 1).map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return <Link key={item.href} href={item.href} onClick={onClose} aria-label={item.label} title={item.label}
-              aria-current={active ? "page" : undefined} className={navClass(active)}>
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center text-lg">{item.icon}</span><span className={textClass}>{item.label}</span>
-            </Link>;
-          })}
-          {unavailableItems.slice(0, 1).map((item) => (
-            <div key={item.label} role="note" aria-label={`${item.label} unavailable`} title={`${item.label} — coming later`}
-              className="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-lg px-2.5 text-sm text-muted/60">
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center text-lg">{item.icon}</span>
-              <span className={textClass}>{item.label}<small className="ml-2 text-xs">Coming later</small></span>
-            </div>
-          ))}
-          {primaryItems.slice(1, 2).map((item) => {
-            const active = pathname.startsWith("/automations") || pathname.startsWith("/campaigns") || pathname.startsWith("/sequences");
-            return <Link key={item.href} href={item.href} onClick={onClose} aria-label={item.label} title={item.label}
-              aria-current={active ? "page" : undefined} className={navClass(active)}>
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center text-lg">{item.icon}</span><span className={textClass}>{item.label}</span>
-            </Link>;
-          })}
-          {unavailableItems.slice(1).map((item) => (
-            <div key={item.label} role="note" aria-label={`${item.label} unavailable`} title={`${item.label} — coming later`}
-              className="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-lg px-2.5 text-sm text-muted/60">
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center text-sm font-semibold">{item.icon}</span>
-              <span className={textClass}>{item.label}<small className="ml-2 text-xs">Coming later</small></span>
-            </div>
-          ))}
-          {primaryItems.slice(2).map((item) => {
+          {primaryItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return <Link key={item.href} href={item.href} onClick={onClose} aria-label={item.label} title={item.label}
               aria-current={active ? "page" : undefined} className={navClass(active)}>
