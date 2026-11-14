@@ -246,6 +246,15 @@ export default function SequenceRouteCanvas({
         <button className={control} aria-label="Reset zoom" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
         <button className={control} aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(1.25, value + 0.1))}>+</button>
       </div>
+      <aside aria-label="Canvas minimap" className="pointer-events-none absolute bottom-16 right-8 hidden w-36 rounded-lg border border-[#dfe1e5] bg-white/95 p-2 shadow-sm xl:block">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#697586]">Minimap</p>
+        <div className="relative h-20 overflow-hidden rounded border border-[#eef0f2] bg-[#fafbfc]">
+          {positions.map((position, index) => (
+            <span key={steps[index].id ?? index} className={`absolute h-3 w-5 rounded-sm border ${index === selectedIndex ? "border-[#1682e8] bg-[#dcebff]" : "border-[#cbd3dc] bg-white"}`}
+              style={{ left: `${Math.min(90, (position.x / Math.max(canvasWidth, 1)) * 100)}%`, top: `${Math.min(84, (position.y / Math.max(canvasHeight, 1)) * 100)}%` }} />
+          ))}
+        </div>
+      </aside>
     </div>
   );
 }

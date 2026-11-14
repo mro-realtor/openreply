@@ -3,7 +3,7 @@
 import SequenceTriggerForm, { type SavedSequenceTrigger } from "@/components/sequence-trigger-form";
 import SequenceRouteCanvas from "@/components/sequence-route-canvas";
 import { normalizeSequenceGraph, traceSequencePath } from "@/lib/sequences/graph";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Step = { id?: string; routes?: Record<string, string | null>; quickReplies?: { id: string; title: string }[]; buttons?: { title: string; url: string }[]; position?: { x: number; y: number }; message: string; delayMinutes: number };
 
@@ -64,6 +64,21 @@ export default function SequenceFlowBuilder({
     setMessages(future[0]);
     setFuture((items) => items.slice(1));
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!editable || !(event.ctrlKey || event.metaKey)) return;
+      if (event.key.toLowerCase() === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if (event.key.toLowerCase() === "y" || (event.key.toLowerCase() === "z" && event.shiftKey)) {
+        event.preventDefault();
+        redo();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
 
   const [index, setIndex] = useState(initialIndex);

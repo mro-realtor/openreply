@@ -44,6 +44,12 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Verification after this correction: `npm run typecheck` passed; `npm run lint` passed with the same two pre-existing unused imports; `npm test -- --reporter=dot` passed all 167 tests; `npm run build -- --webpack` passed after retrying with authorized workspace build-output access; `git diff --check` passed. Attached Chrome still cannot reach the local server, and no hosted Vercel preview exists, so local visual behavior is not yet browser-verified.
 - GitHub Actions CI run `43503728476` (run 62) completed successfully for `82a4711`.
 
+## Flow builder interaction correction — current checkpoint
+
+- Added keyboard history shortcuts to the flow builder: Ctrl/Cmd+Z undo, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo. These use the existing stable-ID message history and do not alter routing semantics.
+- Added a responsive minimap to the route canvas. It reflects persisted card positions and highlights the selected message while leaving drag, pan, zoom, and connector behavior unchanged.
+- Verification after this correction: typecheck passed, lint passed with the same two pre-existing warnings, and all 167 tests passed. A production build should be rerun in the next CI cycle after this commit.
+
 ## Remaining in Phase 1
 
 - Browser-verify the new table and chooser at desktop/mobile widths using an authenticated PR preview; the local browser cannot reach the local server and repository discovery found no Vercel project.
