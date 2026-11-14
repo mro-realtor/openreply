@@ -18,4 +18,5 @@ COPY . .
 RUN npx prisma generate
 
 # Run the background DM worker (not the Next.js web server)
-CMD ["npm", "run", "worker"]
+# Keep the worker's database schema in lockstep with the web container.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run worker"]
