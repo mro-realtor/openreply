@@ -55,6 +55,11 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Replaced the route canvas Auto Arrange action that only cleared positions with a deterministic two-column layout helper in `lib/sequences/graph.ts`. Existing stable IDs, routes, and node content are preserved while positions are recalculated.
 - Added a regression test for the exact layout and verified it RED→GREEN. Full suite now passes 168 tests; typecheck, webpack production build, and `git diff --check` pass.
 
+## Delay block correction — current checkpoint
+
+- Enabled the existing persisted `delayMinutes` field directly in the flow builder’s left message panel. Delay is now editable per message, clamped to 0–1439 minutes, and remains subject to the existing 24-hour sequence validation. Image, PDF, data collection, audio, video, cards, galleries, and dynamic content remain visibly unavailable until their execution paths exist.
+- Verification: typecheck, 168-test suite, and `git diff --check` pass.
+
 ## Remaining in Phase 1
 
 - Browser-verify the new table and chooser at desktop/mobile widths using an authenticated PR preview; the local browser cannot reach the local server and repository discovery found no Vercel project.

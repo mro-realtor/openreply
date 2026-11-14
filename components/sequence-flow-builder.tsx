@@ -197,10 +197,24 @@ export default function SequenceFlowBuilder({
         <p className="text-xs text-[#535d6c]">Content blocks</p>
         <button type="button" className="w-full rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm"
           onClick={() => document.getElementById("sequence-message-text")?.focus()}>Text</button>
-        {["Image", "PDF", "Delay", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
+        {["Image", "PDF", "Data Collection", ...(moreBlocks ? ["Audio", "Video", "Card", "Gallery", "Dynamic Content"] : [])].map((name) =>
           <button key={name} type="button" disabled className="flex w-full justify-between rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm text-[#535d6c]">
             <span>{name}</span><span className="text-xs">Unavailable</span>
           </button>)}
+        <div className="rounded-lg border border-[#cbd1d8] p-3">
+          <label className="flex items-center justify-between gap-3 text-sm font-medium" htmlFor="sequence-delay-minutes">
+            Delay
+            <span className="flex items-center gap-2 font-normal">
+              <input id="sequence-delay-minutes" aria-label="Delay minutes" type="number" min={0} max={1439}
+                className="w-20 rounded-md border border-[#dce0e5] px-2 py-1 text-right" value={messages[index].delayMinutes}
+                disabled={!editable} onChange={(event) => changeMessages((current) => current.map((step, position) => position === index
+                  ? { ...step, delayMinutes: Math.max(0, Math.min(1439, Number(event.target.value) || 0)) }
+                  : step))} />
+              minutes
+            </span>
+          </label>
+          <p className="mt-1 text-xs text-[#535d6c]">Wait before sending this message. Instagram sequences must stay within 24 hours.</p>
+        </div>
         <button type="button" className={control + " w-full text-left"} aria-expanded={moreBlocks}
           onClick={() => setMoreBlocks(!moreBlocks)}>{moreBlocks ? "Show less" : "More"}</button>
       </div>
