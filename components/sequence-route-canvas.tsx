@@ -2,6 +2,7 @@
 
 import { useRef, useState, type PointerEvent } from "react";
 import {
+  arrangeSequencePositions,
   normalizeSequenceGraph,
   resolveSequenceRoute,
   validateSequenceGraph,
@@ -239,7 +240,7 @@ export default function SequenceRouteCanvas({
         </div>
       </div>
       <div className="mt-auto flex justify-end gap-2 pt-6">
-        {editable && <button className={control} onClick={() => onMessagesChange(steps.map((step) => ({ ...step, position: undefined })))}>
+        {editable && <button className={control} onClick={() => onMessagesChange(arrangeSequencePositions(steps))}>
           Auto Arrange Steps
         </button>}
         <button className={control} aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.65, value - 0.1))}>−</button>

@@ -6,6 +6,18 @@ export type SequenceGraphNode = {
   [key: string]: unknown;
 };
 
+export function arrangeSequencePositions<T extends SequenceGraphNode>(
+  steps: readonly T[],
+): Array<T & { position: { x: number; y: number } }> {
+  return steps.map((step, index) => ({
+    ...step,
+    position: {
+      x: index % 2 ? 710 : 365,
+      y: 45 + Math.floor(index / 2) * 210 + (index % 2) * 95,
+    },
+  }));
+}
+
 export function validateSequenceGraph(
   steps: readonly SequenceGraphNode[],
 ): void {

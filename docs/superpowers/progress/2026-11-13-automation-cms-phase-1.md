@@ -50,6 +50,11 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Added a responsive minimap to the route canvas. It reflects persisted card positions and highlights the selected message while leaving drag, pan, zoom, and connector behavior unchanged.
 - Verification after this correction: typecheck passed, lint passed with the same two pre-existing warnings, and all 167 tests passed. A production build should be rerun in the next CI cycle after this commit.
 
+## Canvas auto-arrange correction — current checkpoint
+
+- Replaced the route canvas Auto Arrange action that only cleared positions with a deterministic two-column layout helper in `lib/sequences/graph.ts`. Existing stable IDs, routes, and node content are preserved while positions are recalculated.
+- Added a regression test for the exact layout and verified it RED→GREEN. Full suite now passes 168 tests; typecheck and `git diff --check` pass.
+
 ## Remaining in Phase 1
 
 - Browser-verify the new table and chooser at desktop/mobile widths using an authenticated PR preview; the local browser cannot reach the local server and repository discovery found no Vercel project.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxSequencePathDelay, normalizeSequenceGraph, resolveSequenceRoute, traceSequencePath, validateSequenceGraph } from "@/lib/sequences/graph";
+import { arrangeSequencePositions, maxSequencePathDelay, normalizeSequenceGraph, resolveSequenceRoute, traceSequencePath, validateSequenceGraph } from "@/lib/sequences/graph";
 import { sequenceSteps } from "@/lib/sequences/rules";
 
 describe("sequence graph", () => {
@@ -50,6 +50,19 @@ describe("sequence graph", () => {
   it("treats an explicit missing output as the end of that path", () => {
     const steps = [{ id: "start", routes: {} }, { id: "unreachable" }];
     expect(resolveSequenceRoute(steps, 0, "next")).toBeNull();
+  });
+
+  it("arranges cards in a deterministic two-column flow layout", () => {
+    const arranged = arrangeSequencePositions([
+      { id: "a", position: { x: 999, y: 999 } },
+      { id: "b" },
+      { id: "c" },
+    ]);
+    expect(arranged.map((step) => step.position)).toEqual([
+      { x: 365, y: 45 },
+      { x: 710, y: 140 },
+      { x: 365, y: 255 },
+    ]);
   });
 
   it("rejects duplicate IDs, dangling targets, unsupported outputs, and cycles", () => {
