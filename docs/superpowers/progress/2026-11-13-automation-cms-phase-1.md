@@ -48,12 +48,12 @@ Updated: 2026-11-13 (America/Los_Angeles)
 
 - Added keyboard history shortcuts to the flow builder: Ctrl/Cmd+Z undo, Ctrl/Cmd+Y and Ctrl/Cmd+Shift+Z redo. These use the existing stable-ID message history and do not alter routing semantics.
 - Added a responsive minimap to the route canvas. It reflects persisted card positions and highlights the selected message while leaving drag, pan, zoom, and connector behavior unchanged.
-- Verification after this correction: typecheck passed, lint passed with the same two pre-existing warnings, and all 167 tests passed. A production build should be rerun in the next CI cycle after this commit.
+- Verification after this correction: typecheck passed, lint passed with the same two pre-existing warnings, all 167 tests passed, and the production webpack build passed after the follow-up correction.
 
 ## Canvas auto-arrange correction — current checkpoint
 
 - Replaced the route canvas Auto Arrange action that only cleared positions with a deterministic two-column layout helper in `lib/sequences/graph.ts`. Existing stable IDs, routes, and node content are preserved while positions are recalculated.
-- Added a regression test for the exact layout and verified it RED→GREEN. Full suite now passes 168 tests; typecheck and `git diff --check` pass.
+- Added a regression test for the exact layout and verified it RED→GREEN. Full suite now passes 168 tests; typecheck, webpack production build, and `git diff --check` pass.
 
 ## Remaining in Phase 1
 
