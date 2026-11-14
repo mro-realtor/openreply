@@ -50,13 +50,13 @@ export default function Sidebar({ isOpen, onClose, workspaceName }: SidebarProps
         }`}
       >
         <div className={`flex h-16 shrink-0 items-center border-b border-border ${collapsed ? "justify-center" : "px-5"}`}>
-          <Link href="/dashboard" onClick={onClose} aria-label="OpenReply home" title="OpenReply"
+          <Link href="/dashboard" onClick={onClose} aria-label="MRO OpenReply home" title="MRO OpenReply"
             className="grid size-9 place-items-center rounded-lg bg-foreground text-sm font-bold text-background">O</Link>
-          {!collapsed && <span className="ml-3 text-base font-semibold">OpenReply</span>}
+          {!collapsed && <span className="ml-3 text-base font-semibold">MRO OpenReply</span>}
           <button type="button" className="ml-auto hidden rounded-md px-2 py-1 text-sm text-muted hover:bg-surface-hover lg:block" aria-label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed(value => !value)}>{collapsed ? "→" : "←"}</button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Workspace">
+        <nav className="shrink-0 space-y-1 overflow-y-auto p-2" aria-label="Workspace">
           {primaryItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return <Link key={item.href} href={item.href} onClick={onClose} aria-label={item.label} title={item.label}
@@ -66,7 +66,7 @@ export default function Sidebar({ isOpen, onClose, workspaceName }: SidebarProps
           })}
         </nav>
 
-        <nav aria-label="OpenReply tools" className="space-y-1 border-t border-border p-2">
+        <nav aria-label="OpenReply tools" className="mt-3 shrink-0 space-y-1 border-t border-border p-2">
           {utilityItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return <Link key={item.href} href={item.href} onClick={onClose} aria-label={item.label} title={item.label}
