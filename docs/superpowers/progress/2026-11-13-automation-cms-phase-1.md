@@ -7,7 +7,7 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Repository: `mro-realtor/openreply`
 - Branch: `codex/sequence-quick-reply-routing`
 - Base for the restored branch: `e54df45a2ce3783b792f365a758b4d323d748727` (PR #21 remains open/draft).
-- Phase 1 code is committed and pushed to draft PR #21. Latest branch head is `0bc4e26692b900833e1261daeef75368dd86cbd4` (`docs: checkpoint automation CMS phase 1`), following feature commit `a9169bd`. No migration, merge, live provider send, or production deployment was performed.
+- Phase 1 code and the CMS correction are committed and pushed to draft PR #21. Latest branch head is `82a47111bf20fb0af90d3afb5c7ad30dd5af874e` (`feat: align automation library with ManyChat CMS`). No migration, merge, live provider send, or production deployment was performed.
 - This checkout was cloned into the writable project root as `openreply/`; the sibling `mro-crm/` repository and `sources/` mirror were left untouched.
 
 ## Completed this continuation
@@ -42,6 +42,7 @@ Updated: 2026-11-13 (America/Los_Angeles)
 - Read-only inspection of New Automation confirmed a centered Templates modal, channel tabs, left goal and trigger filters, search, Recommended and Discover more sections, Quick Automation vs Flow Builder badges, Popular / Upgrade / AI labels, plus Start From Scratch. No template was installed and no reference data was changed.
 - CMS correction now uses a ManyChat-blue accent, a responsive table library with accurate Active/Paused status, run/CTR/modified values, account and trigger context, and preserves edit, activate/pause, duplicate, and delete actions. The cards remain available in grid mode. Folder and Trash remain explicitly disabled because campaign persistence has no folder or recoverable archive model; no fake controls were wired.
 - Verification after this correction: `npm run typecheck` passed; `npm run lint` passed with the same two pre-existing unused imports; `npm test -- --reporter=dot` passed all 167 tests; `npm run build -- --webpack` passed after retrying with authorized workspace build-output access; `git diff --check` passed. Attached Chrome still cannot reach the local server, and no hosted Vercel preview exists, so local visual behavior is not yet browser-verified.
+- GitHub Actions CI run `43503728476` (run 62) completed successfully for `82a4711`.
 
 ## Remaining in Phase 1
 
