@@ -145,8 +145,27 @@ model InstagramAccount {
   linkClicks  LinkClick[]
   followerSnapshots FollowerSnapshot[]
   sequenceEnrollments SequenceEnrollment[]
+  contacts          Contact[]
 
   @@index([workspaceId])
+}
+
+model Contact {
+  id                 String   @id @default(cuid())
+  instagramAccountId String
+  recipientId        String
+  username           String?
+  displayName        String?
+  customFields       Json     @default("{}")
+  tags               String[] @default([])
+  lastInteractionAt  DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  instagramAccount InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([instagramAccountId, recipientId])
+  @@index([instagramAccountId, updatedAt])
 }
 
 /// Daily follower total for one account. Instagram only retains ~30 days of
