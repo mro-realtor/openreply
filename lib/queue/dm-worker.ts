@@ -941,6 +941,14 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
  */
 async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
   const { instagramAccountId, messageId, messageText, senderId, interactionAt, quickReplyPayload } = job.data;
+  const account = await prisma.instagramAccount.findUnique({ where: { instagramId: instagramAccountId }, select: { id: true } });
+  if (account && interactionAt) {
+    await prisma.contact.upsert({
+      where: { instagramAccountId_recipientId: { instagramAccountId: account.id, recipientId: senderId } },
+      create: { instagramAccountId: account.id, recipientId: senderId, customFields: { lastMessage: messageText }, lastInteractionAt: new Date(interactionAt) },
+      update: { customFields: { lastMessage: messageText }, lastInteractionAt: new Date(interactionAt) },
+    });
+  }
   if (quickReplyPayload) {
     const routed = await routeSequenceQuickReply(instagramAccountId, senderId, quickReplyPayload, interactionAt ?? 0);
     if (routed.length) await cancelOnReply(instagramAccountId, senderId, interactionAt, routed);
