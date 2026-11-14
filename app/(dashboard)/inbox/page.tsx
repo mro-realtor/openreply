@@ -402,6 +402,12 @@ export default function InboxPage() {
     } finally { setMutating(false); }
   }
 
+  function readThroughValue(date: string | null) {
+    if (!date) return null;
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+
   const actionClass = "rounded border border-border px-2 py-1 text-xs font-medium disabled:opacity-50";
   const threadActions = selectedKey && (
     <div className="ml-auto flex flex-wrap gap-2">
@@ -411,7 +417,7 @@ export default function InboxPage() {
       <button className={actionClass} disabled={mutating} aria-label={currentState?.favorite ? "Remove from favorites" : "Add to favorites"}
         onClick={() => void updateThread(selectedKey, { favorite: !currentState?.favorite })}>{currentState?.favorite ? "♥" : "♡"}</button>
       <button className={actionClass} disabled={mutating || !currentDate} onClick={() =>
-        void updateThread(selectedKey, { readThrough: isUnread(selectedKey, currentDate) ? currentDate : null })}>
+        void updateThread(selectedKey, { readThrough: isUnread(selectedKey, currentDate) ? readThroughValue(currentDate) : null })}>
         {isUnread(selectedKey, currentDate) ? "Mark as read" : "Mark as unread"}
       </button>
       <button className={actionClass} onClick={() => setShowContact(!showContact)} aria-expanded={showContact}>Contact details</button>
@@ -504,7 +510,7 @@ export default function InboxPage() {
                 onClick={() => {
                   setDraft("");
                   setNote("");
-                  if (thread.date && isUnread(thread.key, thread.date) && !mutating) void updateThread(thread.key, { readThrough: thread.date });
+                  if (thread.date && isUnread(thread.key, thread.date) && !mutating) void updateThread(thread.key, { readThrough: readThroughValue(thread.date) });
                   if (thread.channel === "Instagram") openConversation(thread.id);
                   else { setActiveId(null); setFacebookId(thread.id); setSendError(null); }
                 }}>

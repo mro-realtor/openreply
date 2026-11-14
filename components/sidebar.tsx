@@ -6,8 +6,10 @@ import { useState } from "react";
 
 const primaryItems = [
   { label: "Home", href: "/dashboard", icon: "⌂" },
+  { label: "Contacts", href: "/contacts", icon: "♙" },
   { label: "Automation", href: "/automations", icon: "✳" },
   { label: "Inbox", href: "/inbox", icon: "▤" },
+  { label: "Messenger", href: "/messenger", icon: "➤" },
   { label: "Settings", href: "/settings", icon: "⚙" },
 ] as const;
 
