@@ -133,12 +133,6 @@ export default function SequenceRouteCanvas({
             </section>
             <section><h2 className="mb-2 text-sm font-semibold">Content</h2>
               <button className={control + " w-full text-left"} onClick={() => { setAddMenu(false); onAddMessage(); }}>Instagram Message</button>
-              <button className={control + " mt-2 w-full text-left"} disabled>Messenger · Unavailable</button>
-            </section>
-            <section className="mt-4"><h2 className="mb-2 text-sm font-semibold">AI</h2><button className={control + " w-full text-left"} disabled>AI Step · Unavailable</button></section>
-            <section className="mt-4"><h2 className="mb-2 text-sm font-semibold">Logic</h2>
-              {["Actions", "Condition", "Randomizer", "Smart Delay"].map((name) =>
-                <button key={name} className={control + " mb-2 w-full text-left"} disabled>{name} · Unavailable</button>)}
             </section>
           </div>}
         </div>
