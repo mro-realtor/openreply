@@ -87,7 +87,7 @@ export function getFacebookAuthorizationUrl(redirectUri: string, state: string):
   const params = new URLSearchParams({
     client_id: requireEnv("FACEBOOK_APP_ID"),
     redirect_uri: redirectUri,
-    scope: "pages_show_list,pages_manage_metadata,pages_messaging",
+    scope: "pages_show_list,pages_manage_metadata,pages_messaging,business_management",
     response_type: "code",
     state,
   });

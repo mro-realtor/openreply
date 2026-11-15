@@ -90,7 +90,7 @@ export default function MessengerPage() {
       {data?.pages.map((page) => (
         <article key={page.id} className="space-y-3 rounded border border-border p-4">
           <h2 className="font-semibold">{page.name}</h2>
-          {!page.events.length && <p className="text-sm text-muted">Waiting for the first Messenger event.</p>}
+          {!page.events.length && <p className="text-sm text-muted">Connected and ready. Waiting for the first incoming Messenger message or webhook event.</p>}
           {page.events.map((entry) => (
             <div key={entry.eventId} className="flex items-center justify-between gap-3 border-t border-border pt-2 text-sm">
               <div><p className="break-all">{entry.text ?? "Attachment or other message"}</p>
