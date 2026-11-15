@@ -9,6 +9,7 @@ import { getEncryptionKeyHex, requireEnv } from "@/lib/env";
 
 const INSTAGRAM_OAUTH_URL = "https://api.instagram.com/oauth/authorize";
 const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
+const FACEBOOK_OAUTH_URL = "https://www.facebook.com/v25.0/dialog/oauth";
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
@@ -80,6 +81,30 @@ export function getAuthorizationUrl(redirectUri: string, state: string): string 
   });
 
   return `${INSTAGRAM_OAUTH_URL}?${params.toString()}`;
+}
+
+export function getFacebookAuthorizationUrl(redirectUri: string, state: string): string {
+  const params = new URLSearchParams({
+    client_id: requireEnv("FACEBOOK_APP_ID"),
+    redirect_uri: redirectUri,
+    scope: "pages_show_list,pages_manage_metadata,pages_messaging",
+    response_type: "code",
+    state,
+  });
+  return `${FACEBOOK_OAUTH_URL}?${params.toString()}`;
+}
+
+export async function exchangeFacebookCodeForToken(code: string, redirectUri: string): Promise<string> {
+  const params = new URLSearchParams({
+    client_id: requireEnv("FACEBOOK_APP_ID"),
+    client_secret: requireEnv("FACEBOOK_APP_SECRET"),
+    redirect_uri: redirectUri,
+    code,
+  });
+  const response = await fetch(`https://graph.facebook.com/v25.0/oauth/access_token?${params.toString()}`);
+  const data = await response.json();
+  if (!response.ok || typeof data.access_token !== "string") throw new Error("Facebook authorization failed");
+  return data.access_token;
 }
 
 export async function exchangeCodeForToken(

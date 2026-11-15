@@ -47,6 +47,8 @@ export default function MessengerPage() {
       {notice && <p role="status">{notice}</p>}
       {data?.editable && (
         <div className="space-y-3">
+        <a className={`${button} inline-block`} href="/api/messenger/connect">Connect with Facebook</a>
+        <p className="text-sm text-muted">Sign in with Facebook to discover every Page you manage, then connect them together.</p>
         <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
           event.preventDefault();
           void run(async () => {
