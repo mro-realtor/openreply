@@ -272,6 +272,7 @@ model Sequence {
   campaigns   Automation[]
   messengerAutomations MessengerAutomation[]
   enrollments SequenceEnrollment[]
+  messengerEnrollments MessengerSequenceEnrollment[]
 
   @@index([workspaceId])
 }
@@ -290,7 +291,30 @@ model MessengerAutomation {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   page MessengerPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
   sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  enrollments MessengerSequenceEnrollment[]
   @@index([workspaceId, pageId, isActive])
+}
+
+model MessengerSequenceEnrollment {
+  id            String         @id @default(cuid())
+  sequenceId    String
+  automationId  String
+  pageId        String
+  recipientId   String
+  interactionAt DateTime
+  dueAt         DateTime
+  steps         Json
+  nextStep      Int            @default(0)
+  status        SequenceStatus @default(PENDING)
+  reason        String?
+  updatedAt     DateTime       @updatedAt
+  automation    MessengerAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  sequence      Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  page          MessengerPage  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, pageId, recipientId])
+  @@index([status, dueAt])
+  @@index([pageId, recipientId, status])
 }
 
 enum SequenceStatus {
@@ -507,6 +531,7 @@ model MessengerPage {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   events      MessengerEvent[]
   automations MessengerAutomation[]
+  enrollments MessengerSequenceEnrollment[]
 
   @@index([workspaceId])
 }

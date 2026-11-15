@@ -16,9 +16,9 @@ describe("automation template catalog", () => {
     expect(getTemplateDestination(template!)).toBe("/campaigns/new");
   });
 
-  it("keeps unsupported Facebook and AI templates disabled without destinations", () => {
+  it("keeps unsupported Facebook comment and AI templates disabled without destinations", () => {
     const unsupported = automationTemplates.filter(
-      (item) => item.channel === "facebook" || item.id === "instagram-ai"
+      (item) => item.id === "facebook-comment" || item.id === "instagram-ai"
     );
 
     expect(unsupported.length).toBeGreaterThan(0);
@@ -26,6 +26,12 @@ describe("automation template catalog", () => {
     expect(unsupported.every((item) => getTemplateDestination(item) === null)).toBe(
       true
     );
+  });
+
+  it("routes supported Facebook Messenger templates to sequence triggers", () => {
+    const template = automationTemplates.find((item) => item.id === "facebook-message");
+    expect(template?.support).toBe("supported");
+    expect(getTemplateDestination(template!)).toBe("/sequences");
   });
 
   it("filters templates by channel, goal, trigger, and search together", () => {
