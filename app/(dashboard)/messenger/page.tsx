@@ -42,7 +42,10 @@ export default function MessengerPage() {
     <section className="space-y-5">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Facebook Messenger</h1>
-        <button className={button} disabled={busy} onClick={() => void run(async () => setData(await api()))}>Refresh</button>
+        <div className="flex items-center gap-2">
+          <button className={button} disabled={busy} onClick={() => void run(async () => setData(await api()))}>Refresh</button>
+          {data?.editable && <a className="rounded border border-border px-4 py-2 text-sm font-medium" href="/api/messenger/connect">Refresh Facebook connection</a>}
+        </div>
       </header>
       {notice && <p role="status">{notice}</p>}
       {data?.editable && (
@@ -82,6 +85,7 @@ export default function MessengerPage() {
         </form>
         </div>
       )}
+      {data && data.pages.length > 0 && <p className="text-sm text-muted">{data.pages.length} Facebook Page{data.pages.length === 1 ? "" : "s"} connected. Use “Refresh Facebook connection” to rediscover Pages from Meta.</p>}
       {data && !data.pages.length && <p>No Facebook Pages connected.</p>}
       {data?.pages.map((page) => (
         <article key={page.id} className="space-y-3 rounded border border-border p-4">
