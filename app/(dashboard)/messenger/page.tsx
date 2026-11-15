@@ -21,7 +21,6 @@ async function api(method = "GET", body?: unknown) {
 
 export default function MessengerPage() {
   const [data, setData] = useState<Data>();
-  const [token, setToken] = useState("");
   const [selected, setSelected] = useState<{ pageId: string; recipientId: string }>();
   const [text, setText] = useState("");
   const [notice, setNotice] = useState("");
@@ -51,38 +50,7 @@ export default function MessengerPage() {
       {data?.editable && (
         <div className="space-y-3">
         <a className={`${button} inline-block`} href="/api/messenger/connect">Connect with Facebook</a>
-        <p className="text-sm text-muted">Sign in with Facebook to discover every Page you manage, then connect them together.</p>
-        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
-          event.preventDefault();
-          void run(async () => {
-            const page = await api("POST", { token, discover: true });
-            setToken("");
-            setData(await api());
-            setNotice(page.pages.length ? `${page.pages.length} Facebook Page${page.pages.length === 1 ? "" : "s"} connected. Verify webhook subscriptions in Meta.` : "No Facebook Pages were found for this token.");
-          });
-        }}>
-          <label className="grid gap-1 text-sm">Meta user token (discover all Pages)
-            <input className={field} type="password" autoComplete="off" value={token}
-              onChange={(event) => setToken(event.target.value)} required />
-          </label>
-          <button className={button} disabled={busy || !token.trim()}>Discover & Connect Pages</button>
-        </form>
-        <p className="text-sm text-muted">Use the User Token option in Graph API Explorer. It lets OpenReply list every Facebook Page you manage across your business portfolios.</p>
-        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
-          event.preventDefault();
-          void run(async () => {
-            const page = await api("POST", { token, discover: false });
-            setToken("");
-            setData(await api());
-            setNotice(`${page.name} connected. Verify its webhook subscription in Meta.`);
-          });
-        }}>
-          <label className="grid gap-1 text-sm">Or connect one Page token
-            <input className={field} type="password" autoComplete="off" value={token}
-              onChange={(event) => setToken(event.target.value)} required />
-          </label>
-          <button className={button} disabled={busy || !token.trim()}>Connect One Page</button>
-        </form>
+        <p className="text-sm text-muted">Sign in with Facebook to discover every Page you manage, then choose which Pages to connect. Manual token entry is disabled.</p>
         </div>
       )}
       {data && data.pages.length > 0 && <p className="text-sm text-muted">{data.pages.length} Facebook Page{data.pages.length === 1 ? "" : "s"} connected. Use “Refresh Facebook connection” to rediscover Pages from Meta.</p>}
