@@ -49,17 +49,17 @@ export default function MessengerPage() {
         <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
           event.preventDefault();
           void run(async () => {
-            const page = await api("POST", { token });
+            const page = await api("POST", { token, discover: true });
             setToken("");
             setData(await api());
-            setNotice(`${page.name} saved. Verify its webhook subscription in Meta.`);
+            setNotice(page.pages.length ? `${page.pages.length} Facebook Page${page.pages.length === 1 ? "" : "s"} connected. Verify webhook subscriptions in Meta.` : "No Facebook Pages were found for this token.");
           });
         }}>
           <label className="grid gap-1 text-sm">Page access token
             <input className={field} type="password" autoComplete="off" value={token}
               onChange={(event) => setToken(event.target.value)} required />
           </label>
-          <button className={button} disabled={busy || !token.trim()}>Connect Page</button>
+          <button className={button} disabled={busy || !token.trim()}>Discover & Connect Pages</button>
         </form>
       )}
       {data && !data.pages.length && <p>No Facebook Pages connected.</p>}

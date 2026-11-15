@@ -6,7 +6,7 @@ import { encryptToken, decryptToken } from "@/lib/meta/oauth";
 import { getMetaGraphApiVersion } from "@/lib/env";
 import { isInstagramWindowOpen } from "@/lib/sequences/rules";
 
-const connect = z.object({ token: z.string().trim().min(1).max(4096) });
+const connect = z.object({ token: z.string().trim().min(1).max(4096), discover: z.boolean().optional() });
 const reply = z.object({ pageId: z.string(), recipientId: z.string(), text: z.string().trim().min(1).max(2000) });
 
 export async function GET() {
@@ -27,6 +27,18 @@ export async function POST(request: Request) {
   const headers = { Authorization: `Bearer ${input.data.token}` };
   const base = `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
   try {
+    if (input.data.discover) {
+      const response = await fetch(`${base}/me/accounts?fields=id,name,access_token`, { headers, cache: "no-store" });
+      const payload = await response.json();
+      const pages = z.object({ data: z.array(z.object({ id: z.string().regex(/^\d+$/), name: z.string(), access_token: z.string().min(1) })) }).safeParse(payload);
+      if (!response.ok || !pages.success) return NextResponse.json({ error: "Meta could not list the Facebook Pages for this token" }, { status: 400 });
+      for (const page of pages.data.data) {
+        const accessToken = encryptToken(page.access_token);
+        await prisma.messengerPage.createMany({ data: [{ id: page.id, name: page.name, accessToken, workspaceId: context.workspaceId }], skipDuplicates: true });
+        await prisma.messengerPage.updateMany({ where: { id: page.id, workspaceId: context.workspaceId }, data: { name: page.name, accessToken } });
+      }
+      return NextResponse.json({ pages: pages.data.data.map(({ id, name }) => ({ id, name })) });
+    }
     // Page access tokens may not expose the optional category field depending
     // on the app's granted permissions. The ID and name are sufficient to
     // verify and persist a Messenger Page connection.
