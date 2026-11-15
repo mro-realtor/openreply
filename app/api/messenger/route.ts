@@ -27,8 +27,11 @@ export async function POST(request: Request) {
   const headers = { Authorization: `Bearer ${input.data.token}` };
   const base = `https://graph.facebook.com/${getMetaGraphApiVersion()}`;
   try {
-    const response = await fetch(`${base}/me?fields=id,name,category`, { headers, cache: "no-store" });
-    const page = z.object({ id: z.string().regex(/^\d+$/), name: z.string(), category: z.string() }).safeParse(await response.json());
+    // Page access tokens may not expose the optional category field depending
+    // on the app's granted permissions. The ID and name are sufficient to
+    // verify and persist a Messenger Page connection.
+    const response = await fetch(`${base}/me?fields=id,name`, { headers, cache: "no-store" });
+    const page = z.object({ id: z.string().regex(/^\d+$/), name: z.string() }).safeParse(await response.json());
     if (!response.ok || !page.success) return NextResponse.json({ error: "Meta did not accept this Facebook Page access token" }, { status: 400 });
     const { id, name } = page.data;
     const accessToken = encryptToken(input.data.token);
