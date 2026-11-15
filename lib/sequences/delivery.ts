@@ -189,7 +189,10 @@ async function deliverStep(id: string) {
     for (const block of step.contentBlocks ?? []) {
       if (!block.url || !["image", "video", "audio", "file"].includes(block.type)) continue;
       const attachmentType = (block.type === "pdf" ? "file" : block.type) as "image" | "video" | "audio" | "file";
-      await sendDirectMessageWithAttachment(token, account.instagramId, recipientId, attachmentType, block.url);
+      const mediaUrl = block.url?.startsWith("/")
+        ? new URL(block.url, process.env.NEXTAUTH_URL ?? "https://sdo-agents-mrorealtor-web.nd2api.easypanel.host").toString()
+        : block.url;
+      await sendDirectMessageWithAttachment(token, account.instagramId, recipientId, attachmentType, mediaUrl);
     }
   } catch (error) {
     // A lost response can mean Meta accepted the message. Do not send it twice.

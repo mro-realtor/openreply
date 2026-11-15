@@ -25,6 +25,18 @@ model User {
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
 }
 
+model MediaAsset {
+  id          String   @id @default(cuid())
+  workspaceId String
+  filename    String
+  mimeType    String
+  size        Int
+  data        Bytes
+  createdAt   DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, createdAt])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -81,6 +93,7 @@ model Workspace {
   automations       Automation[]
   sequences         Sequence[]
   messengerPages    MessengerPage[]
+  mediaAssets       MediaAsset[]
   inboxThreads      InboxThreadState[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]

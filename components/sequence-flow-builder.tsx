@@ -108,6 +108,7 @@ export default function SequenceFlowBuilder({
   const [basic, setBasic] = useState(false);
   const [search, setSearch] = useState("");
   const [trigger, setTrigger] = useState<Trigger>();
+  const [uploading, setUploading] = useState<number | null>(null);
   const choices = campaigns.filter((campaign) => trigger === "comment" || campaign.dmTriggerEnabled);
 
   const openTriggers = () => {
@@ -147,6 +148,19 @@ export default function SequenceFlowBuilder({
   const blockNames: Array<[ContentBlock["type"], string]> = [["image", "Image"], ["pdf", "PDF"], ["data", "Data Collection"], ["audio", "Audio"], ["video", "Video"], ["card", "Card"], ["gallery", "Gallery"], ["dynamic", "Dynamic Content"]];
   function addBlock(type: ContentBlock["type"]) { changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: [...(step.contentBlocks ?? []), { type, url: "", title: "" }] } : step)); }
   function updateBlock(blockIndex: number, value: Partial<ContentBlock>) { changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: (step.contentBlocks ?? []).map((block, item) => item === blockIndex ? { ...block, ...value } : block) } : step)); }
+  async function uploadBlock(blockIndex: number, file: File) {
+    setUploading(blockIndex);
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const response = await fetch("/api/media/upload", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Upload failed");
+      updateBlock(blockIndex, { url: result.url, title: result.filename });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Upload failed");
+    } finally { setUploading(null); }
+  }
   function updateButton(index: number, value: Partial<NonNullable<Step["buttons"]>[number]>) {
     setButtons(buttons.map((button, position) => position === index ? { ...button, ...value } : button));
   }
@@ -204,7 +218,7 @@ export default function SequenceFlowBuilder({
         <button type="button" className="w-full rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm"
           onClick={() => document.getElementById("sequence-message-text")?.focus()}>Text</button>
         <div className="grid gap-2 sm:grid-cols-2">{blockNames.filter(([type]) => moreBlocks || ["image", "pdf", "data"].includes(type)).map(([type, name]) => <button key={type} type="button" disabled={!editable} className="rounded-lg border border-dashed border-[#cbd1d8] p-3 text-left text-sm hover:border-[#0069dc] disabled:opacity-50" onClick={() => addBlock(type)}><span>{name}</span><span className="mt-1 block text-xs text-[#697586]">Add block</span></button>)}</div>
-        {contentBlocks.map((block, blockIndex) => <div key={`${block.type}-${blockIndex}`} className="space-y-2 rounded-lg border border-[#cbd1d8] bg-[#f8fafc] p-3"><div className="flex items-center justify-between text-sm font-medium"><span>{blockNames.find(([type]) => type === block.type)?.[1]}</span>{editable && <button type="button" className="text-xs text-red-600" onClick={() => changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: (step.contentBlocks ?? []).filter((_, item) => item !== blockIndex) } : step))}>Remove</button>}</div>{block.type === "data" ? <input className={control + " w-full"} placeholder="What should we ask?" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} /> : <><input className={control + " w-full"} placeholder="https://…" type="url" value={block.url ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { url: event.target.value })} />{["card", "gallery", "dynamic"].includes(block.type) && <input className={control + " w-full"} placeholder="Title or dynamic key" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} />}</>}</div>)}
+        {contentBlocks.map((block, blockIndex) => <div key={`${block.type}-${blockIndex}`} className="space-y-2 rounded-lg border border-[#cbd1d8] bg-[#f8fafc] p-3"><div className="flex items-center justify-between text-sm font-medium"><span>{blockNames.find(([type]) => type === block.type)?.[1]}</span>{editable && <button type="button" className="text-xs text-red-600" onClick={() => changeMessages(current => current.map((step, position) => position === index ? { ...step, contentBlocks: (step.contentBlocks ?? []).filter((_, item) => item !== blockIndex) } : step))}>Remove</button>}</div>{block.type === "data" ? <input className={control + " w-full"} placeholder="What should we ask?" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} /> : <>{["image", "pdf", "audio", "video"].includes(block.type) && <label className="block cursor-pointer rounded-md border border-dashed border-[#9bbbe0] bg-white p-3 text-center text-xs text-[#0069dc]">{uploading === blockIndex ? "Uploading…" : block.url ? `Attached: ${block.title || "file"}` : `Upload ${block.type}`}<input className="sr-only" type="file" accept={block.type === "image" ? "image/*" : block.type === "pdf" ? "application/pdf" : block.type === "audio" ? "audio/*" : "video/*"} disabled={!editable || uploading !== null} onChange={event => { const file = event.target.files?.[0]; if (file) void uploadBlock(blockIndex, file); event.currentTarget.value = ""; }} /></label>}{block.type === "card" || block.type === "gallery" || block.type === "dynamic" ? <><input className={control + " w-full"} placeholder="Media URL" type="url" value={block.url ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { url: event.target.value })} /><input className={control + " w-full"} placeholder="Title or dynamic key" value={block.title ?? ""} readOnly={!editable} onChange={event => updateBlock(blockIndex, { title: event.target.value })} /></> : null}</>}</div>)}
         <div className="rounded-lg border border-[#cbd1d8] p-3">
           <label className="flex items-center justify-between gap-3 text-sm font-medium" htmlFor="sequence-delay-minutes">
             Delay
