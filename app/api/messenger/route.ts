@@ -8,6 +8,7 @@ import { isInstagramWindowOpen } from "@/lib/sequences/rules";
 
 const connect = z.object({ token: z.string().trim().min(1).max(4096), discover: z.boolean().optional() });
 const reply = z.object({ pageId: z.string(), recipientId: z.string(), text: z.string().trim().min(1).max(2000) });
+const pageAction = z.object({ pageId: z.string().regex(/^\d+$/) });
 
 export async function GET() {
   const context = await getCurrentWorkspaceContext();
@@ -90,4 +91,15 @@ export async function PATCH(request: Request) {
   } catch {
     return NextResponse.json({ error: "Delivery could not be confirmed" }, { status: 502 });
   }
+}
+
+export async function DELETE(request: Request) {
+  const context = await getCurrentWorkspaceContext();
+  if (!context || !canManageWorkspace(context.role)) return NextResponse.json({ error: "Administrator required" }, { status: 403 });
+  const input = pageAction.safeParse(await request.json().catch(() => null));
+  if (!input.success) return NextResponse.json({ error: "A Facebook Page is required" }, { status: 400 });
+  const page = await prisma.messengerPage.findFirst({ where: { id: input.data.pageId, workspaceId: context.workspaceId }, select: { id: true } });
+  if (!page) return NextResponse.json({ error: "Page unavailable" }, { status: 404 });
+  await prisma.messengerPage.delete({ where: { id: page.id } });
+  return NextResponse.json({ success: true });
 }

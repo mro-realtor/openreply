@@ -90,6 +90,13 @@ export default function MessengerPage() {
       {data?.pages.map((page) => (
         <article key={page.id} className="space-y-3 rounded border border-border p-4">
           <h2 className="font-semibold">{page.name}</h2>
+          {data.editable && <div className="flex gap-2">
+            <a className="rounded border border-border px-3 py-1 text-xs" href="/api/messenger/connect">Refresh this connection</a>
+            <button className="rounded border border-red-200 px-3 py-1 text-xs text-red-600" disabled={busy} onClick={() => {
+              if (!window.confirm(`Disconnect ${page.name} from OpenReply?`)) return;
+              void run(async () => { await api("DELETE", { pageId: page.id }); setData(await api()); setNotice(`${page.name} disconnected from OpenReply.`); });
+            }}>Disconnect</button>
+          </div>}
           {!page.events.length && <p className="text-sm text-muted">Connected and ready. Waiting for the first incoming Messenger message or webhook event.</p>}
           {page.events.map((entry) => (
             <div key={entry.eventId} className="flex items-center justify-between gap-3 border-t border-border pt-2 text-sm">
