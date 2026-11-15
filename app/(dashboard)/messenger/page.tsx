@@ -46,6 +46,7 @@ export default function MessengerPage() {
       </header>
       {notice && <p role="status">{notice}</p>}
       {data?.editable && (
+        <div className="space-y-3">
         <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
           event.preventDefault();
           void run(async () => {
@@ -55,12 +56,29 @@ export default function MessengerPage() {
             setNotice(page.pages.length ? `${page.pages.length} Facebook Page${page.pages.length === 1 ? "" : "s"} connected. Verify webhook subscriptions in Meta.` : "No Facebook Pages were found for this token.");
           });
         }}>
-          <label className="grid gap-1 text-sm">Page access token
+          <label className="grid gap-1 text-sm">Meta user token (discover all Pages)
             <input className={field} type="password" autoComplete="off" value={token}
               onChange={(event) => setToken(event.target.value)} required />
           </label>
           <button className={button} disabled={busy || !token.trim()}>Discover & Connect Pages</button>
         </form>
+        <p className="text-sm text-muted">Use the User Token option in Graph API Explorer. It lets OpenReply list every Facebook Page you manage across your business portfolios.</p>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => {
+          event.preventDefault();
+          void run(async () => {
+            const page = await api("POST", { token, discover: false });
+            setToken("");
+            setData(await api());
+            setNotice(`${page.name} connected. Verify its webhook subscription in Meta.`);
+          });
+        }}>
+          <label className="grid gap-1 text-sm">Or connect one Page token
+            <input className={field} type="password" autoComplete="off" value={token}
+              onChange={(event) => setToken(event.target.value)} required />
+          </label>
+          <button className={button} disabled={busy || !token.trim()}>Connect One Page</button>
+        </form>
+        </div>
       )}
       {data && !data.pages.length && <p>No Facebook Pages connected.</p>}
       {data?.pages.map((page) => (
