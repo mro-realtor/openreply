@@ -66,8 +66,8 @@ export const automationTemplates: AutomationTemplate[] = [
     goal: "engage",
     trigger: "dm",
     builder: "Flow Builder",
-    support: "unavailable",
-    unavailableReason: "The Facebook automation builder is not available yet.",
+    support: "supported",
+    destination: "/sequences",
   },
   {
     id: "facebook-comment",
@@ -97,6 +97,7 @@ export function filterAutomationTemplates({
 }: AutomationTemplateFilters): AutomationTemplate[] {
   const query = search.trim().toLowerCase();
   return automationTemplates.filter((template) => {
+    if (template.support !== "supported") return false;
     if (template.channel !== channel) return false;
     if (goal !== "all" && template.goal !== goal) return false;
     if (trigger !== "all" && template.trigger !== trigger) return false;

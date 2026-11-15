@@ -67,9 +67,9 @@ export default function AutomationTemplateChooser({
         <header className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-7">
           <h2 id="automation-template-title" className="text-lg font-semibold">Templates</h2>
           <div className="flex items-center gap-3">
-            {canStartAutomationFromScratch(channel) ? (
+            {canStartAutomationFromScratch(channel) || channel === "facebook" ? (
               <Link
-                href="/campaigns/new"
+                href={channel === "facebook" ? "/sequences" : "/campaigns/new"}
                 className="hidden rounded-md border border-[#dce2e8] px-3 py-2 text-sm font-medium hover:bg-[#f5f8fb] sm:inline-flex"
               >
                 + Start From Scratch
@@ -170,10 +170,10 @@ export default function AutomationTemplateChooser({
           </div>
         </div>
         <footer className="flex items-center justify-between border-t border-border px-5 py-3 sm:hidden">
-          {canStartAutomationFromScratch(channel) ? (
+          {canStartAutomationFromScratch(channel) || channel === "facebook" ? (
             <>
               <span className="text-xs text-muted">Start a supported Instagram comment automation</span>
-              <Link href="/campaigns/new" className="rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">Start</Link>
+              <Link href={channel === "facebook" ? "/sequences" : "/campaigns/new"} className="rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white">Start</Link>
             </>
           ) : (
             <span className="text-xs text-muted">Facebook automation setup is not available yet.</span>

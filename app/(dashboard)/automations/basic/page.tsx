@@ -98,7 +98,7 @@ export default function BasicAutomationsPage() {
                 <p className="mt-1 text-sm text-muted">{account.name || "Instagram account"} · Instagram</p>
               </header>
               <div className="divide-y divide-border">
-                {basicItems.map((item) => (
+                {basicItems.filter((item) => item.state !== "Unavailable").map((item) => (
                   <article key={item.title} className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
                     <div className="max-w-2xl">
                       <h4 className="font-medium">{item.title}</h4>
