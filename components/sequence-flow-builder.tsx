@@ -24,6 +24,7 @@ const card = "w-full rounded-2xl border border-[#e6e8eb] bg-white p-5 text-left 
 const triggerTypes = [
   { id: "comment", name: "Post or Reel Comments", description: "User comments on your Post or Reel" },
   { id: "dm", name: "Instagram Message", description: "User sends a message" },
+  { id: "messenger", name: "Facebook Messenger", description: "User sends a message to a connected Facebook Page" },
   { id: "story", name: "Story Reply via DM keyword", description: "User replies to your Story with a matching message" },
 ] as const;
 type Trigger = typeof triggerTypes[number]["id"];
@@ -297,7 +298,7 @@ export default function SequenceFlowBuilder({
                     <>
                       <button className="text-sm text-[#0069dc]" onClick={() => setTrigger(undefined)}>← Instagram triggers</button>
                       {editable && <SequenceTriggerForm key={trigger} sequenceId={sequenceId}
-                        type={trigger === "comment" ? "comment" : "dm"} onAdd={(saved) => {
+                        type={trigger === "comment" ? "comment" : trigger === "messenger" ? "messenger" : "dm"} onAdd={(saved) => {
                           setIds((current) => [...current, saved.id]);
                           onTriggerAdded(saved);
                           setTrigger(undefined);
@@ -323,7 +324,7 @@ export default function SequenceFlowBuilder({
                       <input type="search" aria-label="Search in Instagram" placeholder="Search in Instagram"
                         className="w-full rounded-md border border-[#dce0e5] p-2 text-sm"
                         value={search} onChange={(event) => setSearch(event.target.value)} />
-                      <h2 className="text-sm font-semibold text-[#0069dc]">Instagram</h2>
+                      <h2 className="text-sm font-semibold text-[#0069dc]">Channels</h2>
                       {triggerTypes.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(search.toLowerCase())).map((item) => (
                         <button key={item.id} className="block w-full rounded-lg border border-[#e0e4e8] p-3 text-left hover:bg-[#f4f9ff]"
                           onClick={() => setTrigger(item.id)}>

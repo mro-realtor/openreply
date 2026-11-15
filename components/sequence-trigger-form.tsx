@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Account = { id: string; username: string };
+type MessengerPage = { id: string; name: string };
 type Post = { id: string; caption?: string; media_product_type?: string };
 export type SavedSequenceTrigger = {
   id: string; name: string; sequenceId: string; isActive: boolean;
@@ -10,9 +11,10 @@ export type SavedSequenceTrigger = {
 };
 
 export default function SequenceTriggerForm({ type, sequenceId, onAdd }: {
-  type: "comment" | "dm"; sequenceId: string; onAdd: (trigger: SavedSequenceTrigger) => void;
+  type: "comment" | "dm" | "messenger"; sequenceId: string; onAdd: (trigger: SavedSequenceTrigger) => void;
 }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [pages, setPages] = useState<MessengerPage[]>([]);
   const [accountId, setAccountId] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
   const [postId, setPostId] = useState("");
@@ -34,6 +36,10 @@ export default function SequenceTriggerForm({ type, sequenceId, onAdd }: {
     return () => { current = false; };
   }, []);
   useEffect(() => {
+    if (type !== "messenger") return;
+    void fetch("/api/messenger").then(r => r.json()).then(data => { setPages(data.pages ?? []); setAccountId(data.pages?.[0]?.id ?? ""); }).catch(() => setError("Could not load Facebook Pages."));
+  }, [type]);
+  useEffect(() => {
     if (!accountId || type !== "comment") return;
     let current = true;
     void fetch(`/api/instagram/posts?all=true&instagramAccountId=${encodeURIComponent(accountId)}`)
@@ -48,9 +54,9 @@ export default function SequenceTriggerForm({ type, sequenceId, onAdd }: {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/sequences/triggers", {
+      const response = await fetch(type === "messenger" ? "/api/sequences/messenger-triggers" : "/api/sequences/triggers", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sequenceId, accountId, type, postId: postId || undefined,
+        body: JSON.stringify(type === "messenger" ? { sequenceId, pageId: accountId, keywords: keywords.split(",").map(word => word.trim()).filter(Boolean), reply } : { sequenceId, accountId, type, postId: postId || undefined,
           keywords: keywords.split(",").map(word => word.trim()).filter(Boolean),
           openingMessage: openingMessage || undefined, reply }),
       });
@@ -63,15 +69,16 @@ export default function SequenceTriggerForm({ type, sequenceId, onAdd }: {
   }
   const field = "w-full rounded border border-[#dce0e5] bg-white p-2 text-sm";
   return <form className="space-y-3" onSubmit={event => { event.preventDefault(); void save(); }}>
-    <h3 className="font-semibold">{type === "comment" ? "Post or Reel Comments" : "Instagram Message"}</h3>
-    <label className="block text-sm">Instagram account
+    <h3 className="font-semibold">{type === "comment" ? "Post or Reel Comments" : type === "messenger" ? "Facebook Messenger" : "Instagram Message"}</h3>
+    {type === "messenger" && <label className="block text-sm">Facebook Page<select className={field} required value={accountId} onChange={event => setAccountId(event.target.value)}>{!pages.length && <option value="">No connected Pages</option>}{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></label>}
+    {type !== "messenger" && <label className="block text-sm">Instagram account
       <select className={field} required value={accountId} onChange={event => {
         setPosts([]); setPostId(""); setAccountId(event.target.value);
       }}>
         {!accounts.length && <option value="">No Instagram accounts</option>}
         {accounts.map(account => <option key={account.id} value={account.id}>@{account.username}</option>)}
       </select>
-    </label>
+    </label>}
     {type === "comment" && <>
       <label className="block text-sm">Search posts and reels
         <input className={field} type="search" value={search} onChange={event => setSearch(event.target.value)} />

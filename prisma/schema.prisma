@@ -94,6 +94,7 @@ model Workspace {
   sequences         Sequence[]
   messengerPages    MessengerPage[]
   mediaAssets       MediaAsset[]
+  messengerAutomations MessengerAutomation[]
   inboxThreads      InboxThreadState[]
   dmLogs            DmLog[]
   trackedLinks      TrackedLink[]
@@ -269,9 +270,27 @@ model Sequence {
 
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   campaigns   Automation[]
+  messengerAutomations MessengerAutomation[]
   enrollments SequenceEnrollment[]
 
   @@index([workspaceId])
+}
+
+model MessengerAutomation {
+  id String @id @default(cuid())
+  workspaceId String
+  pageId String
+  sequenceId String
+  name String
+  keywords String[]
+  reply String
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  page MessengerPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, pageId, isActive])
 }
 
 enum SequenceStatus {
@@ -487,6 +506,7 @@ model MessengerPage {
   accessToken String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   events      MessengerEvent[]
+  automations MessengerAutomation[]
 
   @@index([workspaceId])
 }
